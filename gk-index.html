@@ -31,6 +31,10 @@
       <div class="gk-hafta" id="gkHafta"></div>
       <h2 class="gk-baslik" id="gkGunOzet">Bugünün görevleri</h2>
       <ul class="gk-gorevler" id="gkGorevler"></ul>
+      <div id="gkHaftalikBolum" hidden>
+        <h2 class="gk-baslik gk-baslik-ara" id="gkHaftaOzet">Bu haftanın görevleri</h2>
+        <ul class="gk-gorevler" id="gkHaftaGorevler"></ul>
+      </div>
     </section>
     <section data-panel="oduller" hidden>
       <div id="gkOdulListe"></div>
@@ -41,6 +45,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="gk-ayar.js"></script>
 <script src="gk-app.js"></script>
 <script>
 const GK_ONCEKI_ETIKET = { hafta: 'Geçen hafta', ay: 'Geçen ay', ceyrek: 'Önceki 3 ay', yariyil: 'Önceki 6 ay' };
@@ -83,34 +88,52 @@ function gkHaftaCiz(bugun) {
     <p>${gkEsc(not)}</p>`;
 }
 
+function gkKart(g, tarihS, not) {
+  const k = gkKayit(g.id, tarihS);
+  const durum = k ? k.durum : 'acik';
+  const etiket = {
+    acik: `+${g.puan} puan`,
+    bekliyor: 'Onay bekliyor',
+    onaylandi: `+${k && k.puan != null ? k.puan : g.puan} kazandın`,
+    reddedildi: `−${g.ceza} puan`
+  }[durum];
+  const damga = { bekliyor: '✓', onaylandi: '★', reddedildi: '✕' }[durum];
+  return `<li><button class="gk-gorev" data-id="${g.id}" data-tarih="${tarihS}" data-durum="${durum}">
+    <span class="gk-gorev-ikon" aria-hidden="true">${gkEsc(g.ikon)}</span>
+    <span class="gk-gorev-ad">${gkEsc(g.ad)}</span>
+    ${not ? `<span class="gk-gorev-not">${gkEsc(not)}</span>` : ''}
+    <span class="gk-gorev-durum">${etiket}</span>
+    ${damga ? `<span class="gk-damga${gkYeniDamga === g.id ? ' yeni' : ''}" aria-hidden="true">${damga}</span>` : ''}
+  </button></li>`;
+}
+
+function gkTamamSayisi(liste, tarihS) {
+  return liste.filter(g => { const k = gkKayit(g.id, tarihS); return k && k.durum !== 'reddedildi'; }).length;
+}
+
 function gkGorevleriCiz(bugun) {
   const s = gkTarihStr(bugun);
+
+  // Günlük görevler
   const liste = gkGunGorevleri(bugun);
   const ul = document.getElementById('gkGorevler');
-  const yapilan = liste.filter(g => { const k = gkKayit(g.id, s); return k && k.durum !== 'reddedildi'; }).length;
   document.getElementById('gkGunOzet').textContent =
-    liste.length ? `Bugünün görevleri (${yapilan}/${liste.length})` : 'Bugünün görevleri';
-  if (!liste.length) {
-    ul.innerHTML = '<li class="gk-bos">Bugün için görev yok. Tadını çıkar!</li>';
-    return;
-  }
-  ul.innerHTML = liste.map(g => {
-    const k = gkKayit(g.id, s);
-    const durum = k ? k.durum : 'acik';
-    const etiket = {
-      acik: `+${g.puan} puan`,
-      bekliyor: 'Onay bekliyor',
-      onaylandi: `+${k && k.puan != null ? k.puan : g.puan} kazandın`,
-      reddedildi: `−${g.ceza} puan`
-    }[durum];
-    const damga = { bekliyor: '✓', onaylandi: '★', reddedildi: '✕' }[durum];
-    return `<li><button class="gk-gorev" data-id="${g.id}" data-durum="${durum}">
-      <span class="gk-gorev-ikon" aria-hidden="true">${gkEsc(g.ikon)}</span>
-      <span class="gk-gorev-ad">${gkEsc(g.ad)}</span>
-      <span class="gk-gorev-durum">${etiket}</span>
-      ${damga ? `<span class="gk-damga${gkYeniDamga === g.id ? ' yeni' : ''}" aria-hidden="true">${damga}</span>` : ''}
-    </button></li>`;
-  }).join('');
+    liste.length ? `Bugünün görevleri (${gkTamamSayisi(liste, s)}/${liste.length})` : 'Bugünün görevleri';
+  ul.innerHTML = liste.length
+    ? liste.map(g => gkKart(g, s)).join('')
+    : '<li class="gk-bos">Bugün için görev yok. Tadını çıkar!</li>';
+
+  // Haftalık görevler
+  const haftaBas = gkHaftaBasi(bugun);
+  const haftaS = gkTarihStr(haftaBas);
+  const haftalik = gkHaftaGorevleri(haftaBas);
+  const sonGun = GK_GUNLER[gkGunEkle(haftaBas, 6).getDay()];
+  document.getElementById('gkHaftalikBolum').hidden = !haftalik.length;
+  document.getElementById('gkHaftaOzet').textContent =
+    `Bu haftanın görevleri (${gkTamamSayisi(haftalik, haftaS)}/${haftalik.length})`;
+  document.getElementById('gkHaftaGorevler').innerHTML =
+    haftalik.map(g => gkKart(g, haftaS, `Son gün ${sonGun}`)).join('');
+
   gkYeniDamga = null;
 }
 
@@ -154,11 +177,11 @@ function gkOdulleriCiz(bugun) {
   }).join('');
 }
 
-document.getElementById('gkGorevler').addEventListener('click', async e => {
+async function gkKartTikla(e) {
   const b = e.target.closest('.gk-gorev');
   if (!b || b.disabled) return;
   const id = Number(b.dataset.id);
-  const s = gkTarihStr(gkBugun());
+  const tarih = b.dataset.tarih;
   const durum = b.dataset.durum;
   if (durum === 'onaylandi') { gkMesaj('Bu görev onaylandı, aferin!'); return; }
   if (durum === 'reddedildi') { gkMesaj('Bu görev yapılmadı olarak işaretlendi.'); return; }
@@ -166,17 +189,19 @@ document.getElementById('gkGorevler').addEventListener('click', async e => {
   b.disabled = true;
   try {
     if (durum === 'acik') {
-      await gkIsaretle(id, s);
+      await gkIsaretle(id, tarih);
       gkYeniDamga = id;
       gkMesaj('Harika! Şimdi onay bekliyor.');
     } else {
-      await gkIsaretKaldir(id, s);
+      await gkIsaretKaldir(id, tarih);
     }
   } catch (err) {
     gkHata(err);
   }
   await gkYenile();
-});
+}
+document.getElementById('gkGorevler').addEventListener('click', gkKartTikla);
+document.getElementById('gkHaftaGorevler').addEventListener('click', gkKartTikla);
 
 gkSekmeKur();
 gkYenile();
