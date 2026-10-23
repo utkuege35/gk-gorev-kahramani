@@ -4,12 +4,8 @@
    bu dosyayı kullanır.
    ===================================================================== */
 
-// ===== 1) SUPABASE BİLGİLERİ =====
-// Sever Bahçesi projesinin URL ve anon (public) anahtarını buraya yaz.
-// Supabase > Project Settings > API sayfasında bulunur.
-const GK_SUPABASE_URL = 'https://thupqmtgxaqnnadrhuwi.supabase.co';
-const GK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRodXBxbXRneGFxbm5hZHJodXdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4MjU5MzQsImV4cCI6MjEwNDQwMTkzNH0.mbeQe7p-SzIW-eUdMBQ88EwtU9tsDOSK3RiMVpWvMaM';
-
+// ===== 1) SUPABASE BAĞLANTISI =====
+// URL ve anahtar gk-ayar.js dosyasındadır. Güncellemelerde o dosyaya dokunulmaz.
 const gkDb = window.supabase.createClient(GK_SUPABASE_URL, GK_SUPABASE_ANON_KEY, {
   db: { schema: 'gk' },
   auth: { persistSession: false, autoRefreshToken: false }
@@ -114,30 +110,59 @@ function gkOdullerSirali(liste) {
 }
 
 // ===== 5) PUAN HESAPLARI =====
-// O gün yapılması gereken görevler
+// O gün yapılması gereken GÜNLÜK görevler
 function gkGunGorevleri(d) {
   const s = gkTarihStr(d);
   if (s < gk.ayarlar.baslangic_tarihi) return [];
   return gk.gorevler.filter(g =>
+    (g.tip || 'gunluk') === 'gunluk' &&
     g.baslangic <= s && (!g.bitis || s <= g.bitis) && g.gunler.includes(d.getDay()));
+}
+
+// Bir tarihin içinde bulunduğu haftanın ilk günü
+function gkHaftaBasi(d) {
+  return gkDonem('hafta', d, gk.ayarlar.hafta_baslangic_gunu).bas;
+}
+
+// O haftanın HAFTALIK görevleri (her hafta tekrarlayanlar + sadece o haftaya ait olanlar)
+// Her hafta tekrarlayan görev, eklendiği günden sonraki ilk hafta başından itibaren geçerlidir.
+// Haftalık görevin kaydı, haftanın ilk gününün tarihiyle tutulur.
+function gkHaftaGorevleri(haftaBas) {
+  const basS = gkTarihStr(haftaBas);
+  const bitS = gkTarihStr(gkGunEkle(haftaBas, 6));
+  if (bitS < gk.ayarlar.baslangic_tarihi) return [];
+  return gk.gorevler.filter(g => {
+    if (g.tip !== 'haftalik') return false;
+    if (g.hafta) return g.hafta === basS;
+    return g.baslangic <= basS && (!g.bitis || g.bitis >= basS);
+  });
 }
 
 // Bir tarih aralığının puan özeti
 // maks: o aralıkta alınabilecek en yüksek puan
 // net: onaylanan puanlar − cezalar (yapılmayan / reddedilen görevler)
+// Haftalık görevler, haftanın son gününe yazılır.
 function gkDonemHesapla(bas, bit) {
   const bugunStr = gkTarihStr(gkBugun());
+  const sonGun = (gk.ayarlar.hafta_baslangic_gunu + 6) % 7;
   const o = { maks: 0, net: 0, kazanilan: 0, ceza: 0, yapilan: 0, kacirilan: 0, bekleyen: 0 };
+
+  const isle = (g, kayitTarihi, sonTarih) => {
+    o.maks += g.puan;
+    if (kayitTarihi > bugunStr) return;
+    const k = gkKayit(g.id, kayitTarihi);
+    if (k && k.durum === 'onaylandi') { o.kazanilan += (k.puan ?? g.puan); o.yapilan++; }
+    else if (k && k.durum === 'reddedildi') { o.ceza += g.ceza; o.kacirilan++; }
+    else if (k && k.durum === 'bekliyor') { o.bekleyen++; }
+    else if (sonTarih < bugunStr) { o.ceza += g.ceza; o.kacirilan++; }
+  };
+
   for (let d = new Date(bas); d <= bit; d = gkGunEkle(d, 1)) {
     const s = gkTarihStr(d);
-    for (const g of gkGunGorevleri(d)) {
-      o.maks += g.puan;
-      if (s > bugunStr) continue;
-      const k = gkKayit(g.id, s);
-      if (k && k.durum === 'onaylandi') { o.kazanilan += (k.puan ?? g.puan); o.yapilan++; }
-      else if (k && k.durum === 'reddedildi') { o.ceza += g.ceza; o.kacirilan++; }
-      else if (k && k.durum === 'bekliyor') { o.bekleyen++; }
-      else if (s < bugunStr) { o.ceza += g.ceza; o.kacirilan++; }
+    for (const g of gkGunGorevleri(d)) isle(g, s, s);
+    if (d.getDay() === sonGun) {
+      const haftaBas = gkGunEkle(d, -6);
+      for (const g of gkHaftaGorevleri(haftaBas)) isle(g, gkTarihStr(haftaBas), s);
     }
   }
   o.net = o.kazanilan - o.ceza;
