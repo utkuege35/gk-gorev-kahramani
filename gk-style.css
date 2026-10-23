@@ -248,3 +248,42 @@ h1, h2, h3 { line-height: 1.15; }
 .gk-form[data-tur="tek"] .gk-tur-gunluk,
 .gk-form[data-tur="tek"] .gk-tur-tekrar { display: none; }
 .gk-ebeveyn select:disabled { opacity: .6; }
+
+/* ---------- Güncelleme 2: haftanın gün şeridi ---------- */
+.gk-serit { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 14px; }
+.gk-gun {
+  border: 0; border-radius: 12px; padding: 6px 2px 8px; cursor: pointer;
+  display: grid; gap: 2px; justify-items: center;
+  background: rgba(255, 255, 255, .1); color: #fff;
+}
+.gk-gun-ad { font-size: .85rem; font-weight: 600; opacity: .85; }
+.gk-gun-isaret { font-size: 1.15rem; font-weight: 800; line-height: 1.2; min-height: 1.4em; }
+.gk-gun[data-tur="tam"] { background: var(--gk-cimen); }
+.gk-gun[data-tur="yarim"] { background: var(--gk-gunes); color: var(--gk-murekkep); }
+.gk-gun[data-tur="kotu"] { background: var(--gk-domates); }
+.gk-gun[data-tur="bugun"] { background: rgba(255, 255, 255, .22); }
+.gk-gun[data-tur="gelecek"] { background: rgba(255, 255, 255, .05); cursor: default; }
+.gk-gun[data-tur="gelecek"] .gk-gun-ad { opacity: .45; }
+.gk-gun[data-bugun] { box-shadow: inset 0 0 0 2px #fff; }
+.gk-gun[aria-pressed="true"] { transform: translateY(-3px); box-shadow: 0 3px 0 #fff; }
+.gk-gun[data-bugun][aria-pressed="true"] { box-shadow: inset 0 0 0 2px #fff, 0 3px 0 #fff; }
+
+.gk-detay { margin-top: 12px; background: var(--gk-kagit); color: var(--gk-murekkep); border-radius: 16px; padding: 12px 16px; }
+.gk-detay h3 { margin: 0 0 6px; font-size: 1.1rem; }
+.gk-detay p { margin: 0; }
+.gk-detay ul { list-style: none; margin: 0; padding: 0; }
+.gk-detay li { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--gk-cizgi); }
+.gk-detay li:first-child { border-top: 0; }
+.gk-detay-isaret { width: 1.6em; height: 1.6em; border-radius: 50%; display: grid; place-items: center; font-weight: 800; flex: none; background: var(--gk-sis); }
+.gk-detay-ad { flex: 1; font-weight: 600; }
+.gk-detay li[data-tur="iyi"] .gk-detay-isaret { background: var(--gk-cimen); color: #fff; }
+.gk-detay li[data-tur="iyi"] b { color: var(--gk-cimen-koyu); }
+.gk-detay li[data-tur="kotu"] .gk-detay-isaret { background: var(--gk-domates); color: #fff; }
+.gk-detay li[data-tur="kotu"] b { color: var(--gk-domates); }
+.gk-detay li[data-tur="bekliyor"] .gk-detay-isaret { background: var(--gk-gunes); }
+
+@media (max-width: 480px) {
+  .gk-serit { gap: 4px; }
+  .gk-gun-ad { font-size: .75rem; }
+  .gk-gun-isaret { font-size: 1rem; }
+}
