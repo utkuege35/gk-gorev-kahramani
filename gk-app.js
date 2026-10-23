@@ -7,8 +7,8 @@
 // ===== 1) SUPABASE BİLGİLERİ =====
 // Sever Bahçesi projesinin URL ve anon (public) anahtarını buraya yaz.
 // Supabase > Project Settings > API sayfasında bulunur.
-const GK_SUPABASE_URL = 'https://PROJE-ADRESIN.supabase.co';
-const GK_SUPABASE_ANON_KEY = 'ANON-KEY-BURAYA';
+const GK_SUPABASE_URL = 'https://thupqmtgxaqnnadrhuwi.supabase.co';
+const GK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRodXBxbXRneGFxbm5hZHJodXdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4MjU5MzQsImV4cCI6MjEwNDQwMTkzNH0.mbeQe7p-SzIW-eUdMBQ88EwtU9tsDOSK3RiMVpWvMaM';
 
 const gkDb = window.supabase.createClient(GK_SUPABASE_URL, GK_SUPABASE_ANON_KEY, {
   db: { schema: 'gk' },
