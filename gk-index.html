@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GK · Görev Kahramanı</title>
+<meta name="theme-color" content="#1F3A93">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⭐</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gk-style.css">
+</head>
+<body class="gk-cocuk">
+<div class="gk-sayfa">
+  <header class="gk-ust">
+    <div>
+      <h1 id="gkSelam">Merhaba!</h1>
+      <p id="gkTarih"></p>
+    </div>
+    <div class="gk-toplam" aria-label="Toplam puan"><b id="gkToplam">0</b><small>puan</small></div>
+  </header>
+
+  <nav class="gk-sekmeler" role="tablist">
+    <button role="tab" data-sekme="bugun" aria-selected="true">GK · Bugün</button>
+    <button role="tab" data-sekme="oduller" aria-selected="false">GK · Ödüllerim</button>
+  </nav>
+
+  <main>
+    <section data-panel="bugun">
+      <div class="gk-hafta" id="gkHafta"></div>
+      <h2 class="gk-baslik" id="gkGunOzet">Bugünün görevleri</h2>
+      <ul class="gk-gorevler" id="gkGorevler"></ul>
+    </section>
+    <section data-panel="oduller" hidden>
+      <div id="gkOdulListe"></div>
+    </section>
+  </main>
+
+  <footer class="gk-alt"><a href="gk-ebeveyn.html">Ebeveyn girişi</a></footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="gk-app.js"></script>
+<script>
+const GK_ONCEKI_ETIKET = { hafta: 'Geçen hafta', ay: 'Geçen ay', ceyrek: 'Önceki 3 ay', yariyil: 'Önceki 6 ay' };
+let gkYeniDamga = null;
+
+async function gkYenile() {
+  try { await gkTumunuYukle(); gkCiz(); }
+  catch (e) { gkHata(e); }
+}
+
+function gkCiz() {
+  const bugun = gkBugun();
+  document.getElementById('gkSelam').textContent = `Merhaba ${gk.ayarlar.cocuk_adi}!`;
+  document.getElementById('gkTarih').textContent = gkUzunTarih(bugun);
+  const toplam = gkDonemHesapla(gkTarih(gk.ayarlar.baslangic_tarihi), bugun);
+  document.getElementById('gkToplam').textContent = toplam.net;
+  gkHaftaCiz(bugun);
+  gkGorevleriCiz(bugun);
+  gkOdulleriCiz(bugun);
+}
+
+function gkHaftaCiz(bugun) {
+  const odul = gk.oduller.find(o => o.aktif && o.donem === 'hafta');
+  const esik = odul ? odul.esik_yuzde : 80;
+  const donem = gkDonem('hafta', bugun, gk.ayarlar.hafta_baslangic_gunu);
+  const h = gkDonemHesapla(donem.bas, donem.bit);
+  const hedef = Math.ceil(h.maks * esik / 100);
+  const kalan = Math.max(0, hedef - h.net);
+  const sonGun = GK_GUNLER[donem.bit.getDay()];
+  let not;
+  if (h.maks === 0) not = 'Bu hafta için görev yok.';
+  else if (kalan === 0) not = 'Hedefe ulaştın! Görevlerini yapmaya devam et 🎉';
+  else not = `${sonGun} akşamına kadar ${kalan} puan daha topla` + (odul ? `, ${odul.ad} senin olsun.` : '.');
+  document.getElementById('gkHafta').innerHTML = `
+    <div class="gk-hafta-ust">
+      <h2>Bu hafta</h2>
+      <span class="gk-hafta-sayi">${h.net}<small> / ${hedef} puan</small></span>
+    </div>
+    ${gkCubuk(h.net, hedef)}
+    <p>${gkEsc(not)}</p>`;
+}
+
+function gkGorevleriCiz(bugun) {
+  const s = gkTarihStr(bugun);
+  const liste = gkGunGorevleri(bugun);
+  const ul = document.getElementById('gkGorevler');
+  const yapilan = liste.filter(g => { const k = gkKayit(g.id, s); return k && k.durum !== 'reddedildi'; }).length;
+  document.getElementById('gkGunOzet').textContent =
+    liste.length ? `Bugünün görevleri (${yapilan}/${liste.length})` : 'Bugünün görevleri';
+  if (!liste.length) {
+    ul.innerHTML = '<li class="gk-bos">Bugün için görev yok. Tadını çıkar!</li>';
+    return;
+  }
+  ul.innerHTML = liste.map(g => {
+    const k = gkKayit(g.id, s);
+    const durum = k ? k.durum : 'acik';
+    const etiket = {
+      acik: `+${g.puan} puan`,
+      bekliyor: 'Onay bekliyor',
+      onaylandi: `+${k && k.puan != null ? k.puan : g.puan} kazandın`,
+      reddedildi: `−${g.ceza} puan`
+    }[durum];
+    const damga = { bekliyor: '✓', onaylandi: '★', reddedildi: '✕' }[durum];
+    return `<li><button class="gk-gorev" data-id="${g.id}" data-durum="${durum}">
+      <span class="gk-gorev-ikon" aria-hidden="true">${gkEsc(g.ikon)}</span>
+      <span class="gk-gorev-ad">${gkEsc(g.ad)}</span>
+      <span class="gk-gorev-durum">${etiket}</span>
+      ${damga ? `<span class="gk-damga${gkYeniDamga === g.id ? ' yeni' : ''}" aria-hidden="true">${damga}</span>` : ''}
+    </button></li>`;
+  }).join('');
+  gkYeniDamga = null;
+}
+
+function gkOdulleriCiz(bugun) {
+  const hb = gk.ayarlar.hafta_baslangic_gunu;
+  const kutu = document.getElementById('gkOdulListe');
+  const liste = gkOdullerSirali(gk.oduller.filter(o => o.aktif));
+  if (!liste.length) {
+    kutu.innerHTML = '<p class="gk-bos">Henüz ödül eklenmedi.</p>';
+    return;
+  }
+  kutu.innerHTML = liste.map(o => {
+    const donem = gkDonem(o.donem, bugun, hb);
+    const d = gkOdulDurumu(o, donem);
+    const kalan = Math.max(0, d.hedef - d.net);
+
+    let oncekiNot = '';
+    const onceki = gkOncekiDonem(o.donem, donem, hb);
+    if (gkTarihStr(onceki.bit) >= gk.ayarlar.baslangic_tarihi) {
+      const od = gkOdulDurumu(o, onceki);
+      const et = GK_ONCEKI_ETIKET[o.donem];
+      if (od.maks > 0) {
+        if (od.teslim) oncekiNot = `<p class="gk-not iyi">${et}: ödülünü aldın 🎉</p>`;
+        else if (od.kazandi) oncekiNot = `<p class="gk-not iyi">${et}: kazandın! Ödülün seni bekliyor 🎁</p>`;
+        else if (od.bekleyen) oncekiNot = `<p class="gk-not">${et}: sonuç onay bekliyor</p>`;
+        else oncekiNot = `<p class="gk-not">${et}: hedefe ulaşamadın (${od.net}/${od.hedef} puan)</p>`;
+      }
+    }
+
+    return `<article class="gk-odul${d.kazandi ? ' kazanildi' : ''}">
+      <span class="gk-odul-ikon" aria-hidden="true">${gkEsc(o.ikon)}</span>
+      <div class="gk-odul-govde">
+        <h3>${gkEsc(o.ad)}</h3>
+        <p class="gk-not">${GK_DONEM_ETIKET[o.donem]} ödül, ${gkDonemAdi(o.donem, donem)}</p>
+        ${gkCubuk(d.net, d.hedef)}
+        <p><b>${d.net}</b> / ${d.hedef} puan${kalan ? `, ${kalan} puan kaldı` : ', hedefe ulaştın!'}</p>
+        ${o.aciklama ? `<p class="gk-not">${gkEsc(o.aciklama)}</p>` : ''}
+        ${oncekiNot}
+      </div>
+    </article>`;
+  }).join('');
+}
+
+document.getElementById('gkGorevler').addEventListener('click', async e => {
+  const b = e.target.closest('.gk-gorev');
+  if (!b || b.disabled) return;
+  const id = Number(b.dataset.id);
+  const s = gkTarihStr(gkBugun());
+  const durum = b.dataset.durum;
+  if (durum === 'onaylandi') { gkMesaj('Bu görev onaylandı, aferin!'); return; }
+  if (durum === 'reddedildi') { gkMesaj('Bu görev yapılmadı olarak işaretlendi.'); return; }
+  if (durum === 'bekliyor' && !confirm('İşareti geri almak istiyor musun?')) return;
+  b.disabled = true;
+  try {
+    if (durum === 'acik') {
+      await gkIsaretle(id, s);
+      gkYeniDamga = id;
+      gkMesaj('Harika! Şimdi onay bekliyor.');
+    } else {
+      await gkIsaretKaldir(id, s);
+    }
+  } catch (err) {
+    gkHata(err);
+  }
+  await gkYenile();
+});
+
+gkSekmeKur();
+gkYenile();
+setInterval(gkYenile, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) gkYenile(); });
+</script>
+</body>
+</html>

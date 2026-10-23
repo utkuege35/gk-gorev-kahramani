@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GK · Ebeveyn paneli</title>
+<meta name="theme-color" content="#1F3A93">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⭐</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gk-style.css">
+</head>
+<body class="gk-ebeveyn">
+<div class="gk-sayfa">
+
+  <section id="gkKapi" class="gk-kapi">
+    <h1>GK · Ebeveyn girişi</h1>
+    <label>Kim giriş yapıyor?
+      <select id="gkKim"><option>Baba</option><option>Anne</option></select>
+    </label>
+    <label>PIN
+      <input id="gkPin" type="password" inputmode="numeric" autocomplete="current-password">
+    </label>
+    <button class="gk-btn ana" id="gkGiris">Giriş yap</button>
+    <a class="gk-geri" href="gk-index.html">Çocuk ekranına dön</a>
+  </section>
+
+  <div id="gkPanel" hidden>
+    <header class="gk-ust">
+      <div>
+        <h1>GK · Ebeveyn paneli</h1>
+        <p id="gkCocukAdi"></p>
+      </div>
+      <a class="gk-btn" href="gk-index.html">Çocuk ekranı</a>
+    </header>
+
+    <nav class="gk-sekmeler" role="tablist">
+      <button role="tab" data-sekme="onaylar" aria-selected="true">GK · Onaylar<span id="gkBekleyenSayi"></span></button>
+      <button role="tab" data-sekme="oduller" aria-selected="false">GK · Ödüller</button>
+      <button role="tab" data-sekme="gorevler" aria-selected="false">GK · Görevler</button>
+      <button role="tab" data-sekme="ayarlar" aria-selected="false">GK · Ayarlar</button>
+    </nav>
+
+    <section data-panel="onaylar" id="gkPanelOnaylar"></section>
+    <section data-panel="oduller" id="gkPanelOduller" hidden></section>
+    <section data-panel="gorevler" id="gkPanelGorevler" hidden></section>
+    <section data-panel="ayarlar" id="gkPanelAyarlar" hidden></section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="gk-app.js"></script>
+<script>
+let gkSeciliGun = gkTarihStr(gkBugun());
+let gkAcikForm = null; // örn. 'gorev-12', 'gorev-yeni', 'odul-3', 'odul-yeni'
+
+// ---------- Giriş ----------
+function gkOnaylayan() { try { return localStorage.getItem('gk_onaylayan') || ''; } catch { return ''; } }
+function gkOnaylayanKaydet(ad) { try { localStorage.setItem('gk_onaylayan', ad); } catch {} }
+function gkGirisVar() { try { return sessionStorage.getItem('gk_giris') === '1'; } catch { return false; } }
+
+async function gkGirisYap() {
+  const pin = document.getElementById('gkPin').value.trim();
+  const kim = document.getElementById('gkKim').value;
+  if (!pin) { gkMesaj('PIN’i yaz.', 'hata'); return; }
+  const btn = document.getElementById('gkGiris');
+  btn.disabled = true;
+  try {
+    const { data, error } = await gkDb.rpc('gk_pin_kontrol', { p_pin: pin });
+    if (error) throw error;
+    if (!data) { gkMesaj('PIN hatalı.', 'hata'); return; }
+    try { sessionStorage.setItem('gk_giris', '1'); } catch {}
+    gkOnaylayanKaydet(kim);
+    gkPaneliAc();
+  } catch (e) {
+    gkHata(e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function gkPaneliAc() {
+  document.getElementById('gkKapi').hidden = true;
+  document.getElementById('gkPanel').hidden = false;
+  gkYenile();
+}
+
+async function gkYenile() {
+  try { await gkTumunuYukle(); gkCiz(); }
+  catch (e) { gkHata(e); }
+}
+
+function gkCiz() {
+  document.getElementById('gkCocukAdi').textContent = `${gk.ayarlar.cocuk_adi} için görevler ve ödüller`;
+  document.getElementById('gkPanelOnaylar').innerHTML = gkOnaylarHtml();
+  document.getElementById('gkPanelOduller').innerHTML = gkOdullerHtml();
+  document.getElementById('gkPanelGorevler').innerHTML = gkGorevlerHtml();
+  document.getElementById('gkPanelAyarlar').innerHTML = gkAyarlarHtml();
+  const n = [...gk.kayitlar.values()].filter(k => k.durum === 'bekliyor').length;
+  document.getElementById('gkBekleyenSayi').textContent = n ? ` (${n})` : '';
+}
+
+function gkGunEtiketi(s) {
+  const bugun = gkBugun();
+  if (s === gkTarihStr(bugun)) return 'Bugün';
+  if (s === gkTarihStr(gkGunEkle(bugun, -1))) return 'Dün';
+  return gkUzunTarih(gkTarih(s));
+}
+function gkGunlerMetni(gunler) {
+  const s = [...gunler].sort().join(',');
+  if (s === '0,1,2,3,4,5,6') return 'her gün';
+  if (s === '1,2,3,4,5') return 'hafta içi';
+  if (s === '0,6') return 'hafta sonu';
+  return [1, 2, 3, 4, 5, 6, 0].filter(n => gunler.includes(n)).map(n => GK_GUN_KISA[n]).join(', ');
+}
+
+// ---------- GK · Onaylar ----------
+function gkOnaylarHtml() {
+  const bekleyen = [...gk.kayitlar.values()]
+    .filter(k => k.durum === 'bekliyor')
+    .sort((a, b) => b.tarih.localeCompare(a.tarih) || a.gorev_id - b.gorev_id);
+
+  let h = '<div class="gk-kutu"><h2>Onay bekleyenler</h2>';
+  if (!bekleyen.length) {
+    h += '<p class="gk-not">Şu an onay bekleyen görev yok.</p>';
+  } else {
+    h += bekleyen.map(k => {
+      const g = gkGorevBul(k.gorev_id);
+      if (!g) return '';
+      return `<div class="gk-satir">
+        <span class="gk-satir-ad">${gkEsc(g.ikon)} ${gkEsc(g.ad)}<small>${gkGunEtiketi(k.tarih)}, +${g.puan} puan</small></span>
+        <button class="gk-btn onay" data-islem="onayla" data-gorev="${g.id}" data-tarih="${k.tarih}">Onayla</button>
+        <button class="gk-btn red" data-islem="reddet" data-gorev="${g.id}" data-tarih="${k.tarih}">Reddet</button>
+      </div>`;
+    }).join('');
+    if (bekleyen.length > 1) {
+      h += `<button class="gk-btn ana gk-tam" data-islem="hepsini-onayla">Hepsini onayla (${bekleyen.length})</button>`;
+    }
+  }
+  h += '</div>';
+
+  const bugunS = gkTarihStr(gkBugun());
+  const liste = gkGunGorevleri(gkTarih(gkSeciliGun));
+  h += `<div class="gk-kutu"><h2>Gün görünümü</h2>
+    <label class="gk-gun-sec">Gün seç
+      <input type="date" id="gkGunSec" value="${gkSeciliGun}" min="${gk.ayarlar.baslangic_tarihi}" max="${bugunS}">
+    </label>`;
+  if (!liste.length) h += '<p class="gk-not">Bu gün için görev yok.</p>';
+  h += liste.map(g => {
+    const k = gkKayit(g.id, gkSeciliGun);
+    const durum = k ? k.durum : (gkSeciliGun < bugunS ? 'kacirildi' : 'acik');
+    const etiket = {
+      acik: 'Henüz işaretlenmedi',
+      bekliyor: 'Onay bekliyor',
+      onaylandi: `Yaptı, +${k && k.puan != null ? k.puan : g.puan}`,
+      reddedildi: `Yapmadı, −${g.ceza}`,
+      kacirildi: `İşaretlenmedi, −${g.ceza}`
+    }[durum];
+    const kim = k && k.onaylayan ? ` ${gkEsc(k.onaylayan)}` : '';
+    const veri = `data-gorev="${g.id}" data-tarih="${gkSeciliGun}"`;
+    return `<div class="gk-satir">
+      <span class="gk-satir-ad">${gkEsc(g.ikon)} ${gkEsc(g.ad)}<small><span class="gk-etiket" data-durum="${durum}">${etiket}</span>${kim}</small></span>
+      <button class="gk-btn onay" data-islem="onayla" ${veri} ${durum === 'onaylandi' ? 'disabled' : ''}>Yaptı</button>
+      <button class="gk-btn red" data-islem="reddet" ${veri} ${durum === 'reddedildi' ? 'disabled' : ''}>Yapmadı</button>
+      <button class="gk-btn" data-islem="sifirla" ${veri} ${k ? '' : 'disabled'}>Sıfırla</button>
+    </div>`;
+  }).join('');
+  h += '</div>';
+  return h;
+}
+
+// ---------- GK · Ödüller ----------
+function gkOdullerHtml() {
+  const bugun = gkBugun();
+  const hb = gk.ayarlar.hafta_baslangic_gunu;
+  let h = '';
+  for (const o of gkOdullerSirali(gk.oduller)) {
+    const donem = gkDonem(o.donem, bugun, hb);
+    const d = gkOdulDurumu(o, donem);
+    h += `<div class="gk-kutu${o.aktif ? '' : ' pasif'}">
+      <div class="gk-satir gk-satir-bas">
+        <span class="gk-satir-ad"><span class="gk-buyuk-ikon">${gkEsc(o.ikon)}</span> ${gkEsc(o.ad)}
+          <small>${GK_DONEM_ETIKET[o.donem]}, gereken başarı %${o.esik_yuzde}${o.aktif ? '' : ', pasif'}</small></span>
+        <button class="gk-btn" data-islem="form-ac" data-form="odul-${o.id}">Düzenle</button>
+      </div>`;
+    if (gkAcikForm === `odul-${o.id}`) h += gkOdulForm(o);
+    h += `<p class="gk-kucuk">Bu dönem (${gkDonemAdi(o.donem, donem)}): <b>${d.net}</b> / ${d.hedef} puan</p>${gkCubuk(d.net, d.hedef)}`;
+
+    const satirlar = [];
+    let p = gkOncekiDonem(o.donem, donem, hb);
+    while (satirlar.length < 3 && gkTarihStr(p.bit) >= gk.ayarlar.baslangic_tarihi) {
+      const s = gkOdulDurumu(o, p);
+      if (s.maks > 0) satirlar.push(gkGecmisSatir(o, p, s));
+      p = gkOncekiDonem(o.donem, p, hb);
+    }
+    if (satirlar.length) h += `<h3 class="gk-ara">Biten dönemler</h3>${satirlar.join('')}`;
+    h += '</div>';
+  }
+  h += gkAcikForm === 'odul-yeni'
+    ? `<div class="gk-kutu"><h2>Yeni ödül</h2>${gkOdulForm(null)}</div>`
+    : '<button class="gk-btn ana gk-tam" data-islem="form-ac" data-form="odul-yeni">Yeni ödül ekle</button>';
+  return h;
+}
+
+function gkGecmisSatir(o, p, s) {
+  let sag;
+  if (s.teslim) {
+    sag = `<span class="gk-etiket" data-durum="onaylandi">Teslim edildi</span>
+      <button class="gk-btn" data-islem="teslim-geri" data-teslim="${s.teslim.id}">Geri al</button>`;
+  } else if (s.kazandi) {
+    sag = `<button class="gk-btn onay" data-islem="teslim" data-odul="${o.id}" data-donem="${gkTarihStr(p.bas)}">Teslim ettim</button>`;
+  } else if (s.bekleyen) {
+    sag = `<span class="gk-etiket" data-durum="bekliyor">${s.bekleyen} onay bekliyor</span>`;
+  } else {
+    sag = '<span class="gk-etiket" data-durum="reddedildi">Hedefe ulaşılamadı</span>';
+  }
+  return `<div class="gk-satir">
+    <span class="gk-satir-ad">${gkDonemAdi(o.donem, p)}<small>${s.net} / ${s.hedef} puan</small></span>${sag}
+  </div>`;
+}
+
+function gkOdulForm(o) {
+  const yeni = !o;
+  o = o || { ad: '', ikon: '🎁', donem: 'hafta', esik_yuzde: 80, aciklama: '', aktif: true };
+  return `<div class="gk-form" data-id="${yeni ? '' : o.id}">
+    <div class="gk-iki">
+      <label>Ödül adı<input name="ad" value="${gkEsc(o.ad)}" maxlength="80"></label>
+      <label>Simge (emoji)<input name="ikon" value="${gkEsc(o.ikon)}" maxlength="8"></label>
+    </div>
+    <div class="gk-iki">
+      <label>Dönem<select name="donem">${['hafta', 'ay', 'ceyrek', 'yariyil'].map(d =>
+        `<option value="${d}" ${o.donem === d ? 'selected' : ''}>${GK_DONEM_ETIKET[d]}</option>`).join('')}</select></label>
+      <label>Gereken başarı (%)<input name="esik" type="number" min="1" max="100" value="${o.esik_yuzde}"></label>
+    </div>
+    <label>Açıklama<input name="aciklama" value="${gkEsc(o.aciklama)}" maxlength="140"></label>
+    <label class="gk-onay-kutusu"><input type="checkbox" name="aktif" ${o.aktif ? 'checked' : ''}> Aktif</label>
+    <div class="gk-dugmeler">
+      <button class="gk-btn ana" data-islem="odul-kaydet">Kaydet</button>
+      <button class="gk-btn" data-islem="form-kapat">Vazgeç</button>
+      ${yeni ? '' : `<button class="gk-btn red" data-islem="odul-sil" data-odul="${o.id}">Ödülü sil</button>`}
+    </div>
+  </div>`;
+}
+
+// ---------- GK · Görevler ----------
+function gkGorevlerHtml() {
+  const aktif = gk.gorevler.filter(g => !g.bitis);
+  const biten = gk.gorevler.filter(g => g.bitis).sort((a, b) => b.bitis.localeCompare(a.bitis)).slice(0, 8);
+  let h = '<div class="gk-kutu"><h2>Görevler</h2>';
+  if (!aktif.length) h += '<p class="gk-not">Henüz görev yok. İlk görevi ekle.</p>';
+  for (const g of aktif) {
+    h += `<div class="gk-satir">
+      <span class="gk-satir-ad">${gkEsc(g.ikon)} ${gkEsc(g.ad)}<small>+${g.puan} / −${g.ceza} puan, ${gkGunlerMetni(g.gunler)}</small></span>
+      <button class="gk-btn" data-islem="form-ac" data-form="gorev-${g.id}">Düzenle</button>
+    </div>`;
+    if (gkAcikForm === `gorev-${g.id}`) h += gkGorevForm(g);
+  }
+  h += gkAcikForm === 'gorev-yeni'
+    ? gkGorevForm(null)
+    : '<button class="gk-btn ana gk-tam" data-islem="form-ac" data-form="gorev-yeni">Yeni görev ekle</button>';
+  h += '</div>';
+  if (biten.length) {
+    h += `<div class="gk-kutu"><h2>Kaldırılan görevler</h2>${biten.map(g => `<div class="gk-satir">
+      <span class="gk-satir-ad">${gkEsc(g.ikon)} ${gkEsc(g.ad)}<small>Son gün: ${gkUzunTarih(gkTarih(g.bitis))}</small></span>
+      <button class="gk-btn" data-islem="gorev-geri" data-gorev="${g.id}">Geri ekle</button>
+    </div>`).join('')}</div>`;
+  }
+  return h;
+}
+
+function gkGorevForm(g) {
+  const yeni = !g;
+  const enBuyukSira = gk.gorevler.reduce((m, x) => Math.max(m, x.sira), 0);
+  g = g || { ad: '', ikon: '⭐', puan: 10, ceza: 5, gunler: [0, 1, 2, 3, 4, 5, 6], sira: enBuyukSira + 1 };
+  return `<div class="gk-form" data-id="${yeni ? '' : g.id}">
+    <div class="gk-iki">
+      <label>Görev adı<input name="ad" value="${gkEsc(g.ad)}" maxlength="60"></label>
+      <label>Simge (emoji)<input name="ikon" value="${gkEsc(g.ikon)}" maxlength="8"></label>
+    </div>
+    <div class="gk-iki">
+      <label>Yapınca kazanılan puan<input name="puan" type="number" min="1" value="${g.puan}"></label>
+      <label>Yapmayınca düşen puan<input name="ceza" type="number" min="0" value="${g.ceza}"></label>
+    </div>
+    <fieldset class="gk-gunler"><legend>Hangi günler?</legend>
+      ${[1, 2, 3, 4, 5, 6, 0].map(n => `<label><input type="checkbox" name="gun" value="${n}" ${g.gunler.includes(n) ? 'checked' : ''}>${GK_GUN_KISA[n]}</label>`).join('')}
+    </fieldset>
+    <label>Sıra<input name="sira" type="number" value="${g.sira}"></label>
+    ${yeni ? '' : '<p class="gk-not">Puan ve gün değişiklikleri geçmiş günlerin hesabını da etkiler.</p>'}
+    <div class="gk-dugmeler">
+      <button class="gk-btn ana" data-islem="gorev-kaydet">Kaydet</button>
+      <button class="gk-btn" data-islem="form-kapat">Vazgeç</button>
+      ${yeni ? '' : `<button class="gk-btn red" data-islem="gorev-kaldir" data-gorev="${g.id}">Görevi kaldır</button>`}
+    </div>
+  </div>`;
+}
+
+// ---------- GK · Ayarlar ----------
+function gkAyarlarHtml() {
+  const a = gk.ayarlar;
+  return `<div class="gk-kutu"><h2>Genel</h2>
+    <div class="gk-form" data-form="ayar">
+      <label>Çocuğun adı<input name="cocuk_adi" value="${gkEsc(a.cocuk_adi)}" maxlength="40"></label>
+      <label>Puan hesabının başladığı tarih<input name="baslangic_tarihi" type="date" value="${a.baslangic_tarihi}"></label>
+      <label>Hafta hangi gün başlar?<select name="hafta">${[1, 2, 3, 4, 5, 6, 0].map(n =>
+        `<option value="${n}" ${a.hafta_baslangic_gunu === n ? 'selected' : ''}>${GK_GUNLER[n]}</option>`).join('')}</select></label>
+      <p class="gk-not">Cumartesi seçiliyse hafta Cuma akşamı kapanır, haftalık ödül hafta sonuna denk gelir.</p>
+      <div class="gk-dugmeler"><button class="gk-btn ana" data-islem="ayar-kaydet">Kaydet</button></div>
+    </div>
+  </div>
+  <div class="gk-kutu"><h2>Bu telefon</h2>
+    <div class="gk-form">
+      <label>Onaylarda görünecek adın<input id="gkKimAyar" value="${gkEsc(gkOnaylayan())}" maxlength="20"></label>
+      <div class="gk-dugmeler"><button class="gk-btn ana" data-islem="kim-kaydet">Kaydet</button></div>
+    </div>
+  </div>
+  <div class="gk-kutu"><h2>PIN değiştir</h2>
+    <div class="gk-form">
+      <label>Mevcut PIN<input name="eski" type="password" inputmode="numeric" autocomplete="current-password"></label>
+      <label>Yeni PIN (en az 4 hane)<input name="yeni" type="password" inputmode="numeric" autocomplete="new-password"></label>
+      <label>Yeni PIN tekrar<input name="tekrar" type="password" inputmode="numeric" autocomplete="new-password"></label>
+      <div class="gk-dugmeler"><button class="gk-btn ana" data-islem="pin-degistir">PIN’i değiştir</button></div>
+    </div>
+  </div>
+  <button class="gk-btn gk-tam" data-islem="cikis">Çıkış yap</button>`;
+}
+
+// ---------- Kaydetme işlemleri ----------
+async function gkGorevKaydet(btn) {
+  const f = btn.closest('.gk-form');
+  const id = f.dataset.id ? Number(f.dataset.id) : null;
+  const deger = n => f.querySelector(`[name=${n}]`).value.trim();
+  const ad = deger('ad');
+  const ikon = deger('ikon') || '⭐';
+  const puan = parseInt(deger('puan'), 10);
+  const ceza = parseInt(deger('ceza'), 10);
+  const sira = parseInt(deger('sira'), 10) || 0;
+  const gunler = [...f.querySelectorAll('[name=gun]:checked')].map(x => Number(x.value)).sort();
+  if (!ad) { gkMesaj('Görev adını yaz.', 'hata'); return false; }
+  if (!(puan > 0)) { gkMesaj('Kazanılan puan en az 1 olmalı.', 'hata'); return false; }
+  if (!(ceza >= 0)) { gkMesaj('Düşen puan 0 veya daha fazla olmalı.', 'hata'); return false; }
+  if (!gunler.length) { gkMesaj('En az bir gün seç.', 'hata'); return false; }
+  const veri = { ad, ikon, puan, ceza, gunler, sira };
+  if (id) gkKontrol(await gkDb.from('gk_gorevler').update(veri).eq('id', id));
+  else gkKontrol(await gkDb.from('gk_gorevler').insert({ ...veri, baslangic: gkTarihStr(gkBugun()) }));
+  gkAcikForm = null;
+  return true;
+}
+
+async function gkGorevKaldir(id) {
+  const g = gkGorevBul(id);
+  if (!g) return false;
+  if (!confirm(`“${g.ad}” kaldırılsın mı? Bugün son günü olur, geçmiş puanlar korunur.`)) return false;
+  const bugunS = gkTarihStr(gkBugun());
+  const kayitVar = [...gk.kayitlar.values()].some(k => k.gorev_id === id);
+  if (g.baslangic >= bugunS && !kayitVar) gkKontrol(await gkDb.from('gk_gorevler').delete().eq('id', id));
+  else gkKontrol(await gkDb.from('gk_gorevler').update({ bitis: bugunS }).eq('id', id));
+  gkAcikForm = null;
+  return true;
+}
+
+async function gkGorevGeriEkle(id) {
+  const g = gkGorevBul(id);
+  const bugunS = gkTarihStr(gkBugun());
+  if (g.bitis >= bugunS) {
+    gkKontrol(await gkDb.from('gk_gorevler').update({ bitis: null }).eq('id', id));
+  } else {
+    // Aradaki günler ceza yazmasın diye bugünden başlayan yeni bir kopya eklenir
+    gkKontrol(await gkDb.from('gk_gorevler').insert({
+      ad: g.ad, ikon: g.ikon, puan: g.puan, ceza: g.ceza, gunler: g.gunler, sira: g.sira, baslangic: bugunS
+    }));
+  }
+}
+
+async function gkOdulKaydet(btn) {
+  const f = btn.closest('.gk-form');
+  const id = f.dataset.id ? Number(f.dataset.id) : null;
+  const deger = n => f.querySelector(`[name=${n}]`).value.trim();
+  const ad = deger('ad');
+  const esik = parseInt(deger('esik'), 10);
+  if (!ad) { gkMesaj('Ödül adını yaz.', 'hata'); return false; }
+  if (!(esik >= 1 && esik <= 100)) { gkMesaj('Gereken başarı 1 ile 100 arasında olmalı.', 'hata'); return false; }
+  const veri = {
+    ad,
+    ikon: deger('ikon') || '🎁',
+    donem: deger('donem'),
+    esik_yuzde: esik,
+    aciklama: deger('aciklama') || null,
+    aktif: f.querySelector('[name=aktif]').checked
+  };
+  if (id) gkKontrol(await gkDb.from('gk_oduller').update(veri).eq('id', id));
+  else gkKontrol(await gkDb.from('gk_oduller').insert(veri));
+  gkAcikForm = null;
+  return true;
+}
+
+async function gkAyarKaydet(btn) {
+  const f = btn.closest('.gk-form');
+  const cocuk_adi = f.querySelector('[name=cocuk_adi]').value.trim();
+  const baslangic_tarihi = f.querySelector('[name=baslangic_tarihi]').value;
+  const hafta = Number(f.querySelector('[name=hafta]').value);
+  if (!cocuk_adi) { gkMesaj('Çocuğun adını yaz.', 'hata'); return false; }
+  if (!baslangic_tarihi) { gkMesaj('Başlangıç tarihini seç.', 'hata'); return false; }
+  gkKontrol(await gkDb.from('gk_ayarlar')
+    .update({ cocuk_adi, baslangic_tarihi, hafta_baslangic_gunu: hafta }).eq('id', 1));
+  return true;
+}
+
+async function gkPinDegistir(btn) {
+  const f = btn.closest('.gk-form');
+  const eski = f.querySelector('[name=eski]').value.trim();
+  const yeni = f.querySelector('[name=yeni]').value.trim();
+  const tekrar = f.querySelector('[name=tekrar]').value.trim();
+  if (yeni.length < 4) { gkMesaj('Yeni PIN en az 4 hane olmalı.', 'hata'); return false; }
+  if (yeni !== tekrar) { gkMesaj('Yeni PIN’ler birbirini tutmuyor.', 'hata'); return false; }
+  const { data, error } = await gkDb.rpc('gk_pin_degistir', { p_eski: eski, p_yeni: yeni });
+  if (error) throw error;
+  if (!data) { gkMesaj('Mevcut PIN hatalı.', 'hata'); return false; }
+  return true;
+}
+
+// ---------- Düğmeler ----------
+async function gkIslem(btn) {
+  const islem = btn.dataset.islem;
+  const gorevId = btn.dataset.gorev ? Number(btn.dataset.gorev) : null;
+  const tarih = btn.dataset.tarih;
+
+  // Sadece ekranı değiştiren işlemler
+  if (islem === 'form-ac') { gkAcikForm = btn.dataset.form; gkCiz(); return; }
+  if (islem === 'form-kapat') { gkAcikForm = null; gkCiz(); return; }
+  if (islem === 'cikis') { try { sessionStorage.removeItem('gk_giris'); } catch {} location.reload(); return; }
+  if (islem === 'kim-kaydet') {
+    const ad = document.getElementById('gkKimAyar').value.trim();
+    if (!ad) { gkMesaj('Bir ad yaz.', 'hata'); return; }
+    gkOnaylayanKaydet(ad);
+    gkMesaj('Kaydedildi.');
+    return;
+  }
+
+  // Veritabanına yazan işlemler
+  btn.disabled = true;
+  try {
+    let mesaj = '';
+    let tamam = true;
+    switch (islem) {
+      case 'onayla':
+        await gkDurumYaz(gkGorevBul(gorevId), tarih, 'onaylandi', gkOnaylayan());
+        mesaj = 'Onaylandı.';
+        break;
+      case 'reddet':
+        await gkDurumYaz(gkGorevBul(gorevId), tarih, 'reddedildi', gkOnaylayan());
+        mesaj = 'Yapılmadı olarak işaretlendi.';
+        break;
+      case 'sifirla':
+        await gkKayitSil(gorevId, tarih);
+        mesaj = 'Sıfırlandı.';
+        break;
+      case 'hepsini-onayla': {
+        const liste = [...gk.kayitlar.values()].filter(k => k.durum === 'bekliyor');
+        for (const k of liste) {
+          const g = gkGorevBul(k.gorev_id);
+          if (g) await gkDurumYaz(g, k.tarih, 'onaylandi', gkOnaylayan());
+        }
+        mesaj = `${liste.length} görev onaylandı.`;
+        break;
+      }
+      case 'teslim':
+        gkKontrol(await gkDb.from('gk_odul_teslimleri').insert({
+          odul_id: Number(btn.dataset.odul), donem_baslangic: btn.dataset.donem, teslim_eden: gkOnaylayan() || null
+        }));
+        mesaj = 'Ödül teslim edildi olarak kaydedildi.';
+        break;
+      case 'teslim-geri':
+        gkKontrol(await gkDb.from('gk_odul_teslimleri').delete().eq('id', Number(btn.dataset.teslim)));
+        mesaj = 'Teslim kaydı geri alındı.';
+        break;
+      case 'gorev-kaydet': tamam = await gkGorevKaydet(btn); mesaj = 'Görev kaydedildi.'; break;
+      case 'gorev-kaldir': tamam = await gkGorevKaldir(gorevId); mesaj = 'Görev kaldırıldı.'; break;
+      case 'gorev-geri': await gkGorevGeriEkle(gorevId); mesaj = 'Görev geri eklendi.'; break;
+      case 'odul-kaydet': tamam = await gkOdulKaydet(btn); mesaj = 'Ödül kaydedildi.'; break;
+      case 'odul-sil':
+        if (!confirm('Bu ödül ve teslim kayıtları silinsin mi?')) { tamam = false; break; }
+        gkKontrol(await gkDb.from('gk_oduller').delete().eq('id', Number(btn.dataset.odul)));
+        gkAcikForm = null;
+        mesaj = 'Ödül silindi.';
+        break;
+      case 'ayar-kaydet': tamam = await gkAyarKaydet(btn); mesaj = 'Ayarlar kaydedildi.'; break;
+      case 'pin-degistir': tamam = await gkPinDegistir(btn); mesaj = 'PIN değiştirildi.'; break;
+    }
+    if (!tamam) { btn.disabled = false; return; }
+    if (mesaj) gkMesaj(mesaj);
+    await gkYenile();
+  } catch (e) {
+    gkHata(e);
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('gkPanel').addEventListener('click', e => {
+  const btn = e.target.closest('[data-islem]');
+  if (btn && !btn.disabled) gkIslem(btn);
+});
+document.getElementById('gkPanel').addEventListener('change', e => {
+  if (e.target.id === 'gkGunSec' && e.target.value) {
+    gkSeciliGun = e.target.value;
+    document.getElementById('gkPanelOnaylar').innerHTML = gkOnaylarHtml();
+  }
+});
+document.getElementById('gkGiris').addEventListener('click', gkGirisYap);
+document.getElementById('gkPin').addEventListener('keydown', e => { if (e.key === 'Enter') gkGirisYap(); });
+
+// Ekran açıkken arada bir yenile (form açıkken veya yazı yazılırken dokunma)
+function gkSessizYenile() {
+  if (!gkGirisVar()) return;
+  const a = document.activeElement;
+  if (gkAcikForm || (a && a.matches('input, select, textarea'))) return;
+  gkYenile();
+}
+
+gkSekmeKur();
+const gkKayitliKim = gkOnaylayan();
+if (gkKayitliKim === 'Anne' || gkKayitliKim === 'Baba') document.getElementById('gkKim').value = gkKayitliKim;
+if (gkGirisVar()) gkPaneliAc();
+setInterval(gkSessizYenile, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) gkSessizYenile(); });
+</script>
+</body>
+</html>
