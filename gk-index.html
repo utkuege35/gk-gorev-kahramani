@@ -85,8 +85,75 @@ function gkHaftaCiz(bugun) {
       <span class="gk-hafta-sayi">${h.net}<small> / ${hedef} puan</small></span>
     </div>
     ${gkCubuk(h.net, hedef)}
-    <p>${gkEsc(not)}</p>`;
+    <p>${gkEsc(not)}</p>
+    ${gkGunSeridi(donem, bugun)}`;
 }
+
+// ---------- Haftanın gün şeridi ----------
+let gkSeritGun = null; // dokunulan günün tarihi
+
+function gkGunDurumu(d, bugunS) {
+  const s = gkTarihStr(d);
+  if (s > bugunS) return { tur: 'gelecek', yazi: '' };
+  const liste = gkGunGorevleri(d);
+  if (!liste.length) return { tur: 'bos', yazi: '–' };
+  let yapilan = 0;
+  for (const g of liste) {
+    const k = gkKayit(g.id, s);
+    if (k && (k.durum === 'onaylandi' || k.durum === 'bekliyor')) yapilan++;
+  }
+  if (yapilan === liste.length) return { tur: 'tam', yazi: '★' };
+  if (s === bugunS) return { tur: 'bugun', yazi: `${yapilan}/${liste.length}` };
+  if (yapilan === 0) return { tur: 'kotu', yazi: `0/${liste.length}` };
+  return { tur: 'yarim', yazi: `${yapilan}/${liste.length}` };
+}
+
+function gkGunSeridi(donem, bugun) {
+  const bugunS = gkTarihStr(bugun);
+  const gunler = [];
+  for (let i = 0; i < 7; i++) gunler.push(gkGunEkle(donem.bas, i));
+  if (gkSeritGun && !gunler.some(d => gkTarihStr(d) === gkSeritGun)) gkSeritGun = null;
+
+  const kutular = gunler.map(d => {
+    const s = gkTarihStr(d);
+    const du = gkGunDurumu(d, bugunS);
+    const gelecek = du.tur === 'gelecek';
+    return `<button class="gk-gun" data-gun="${s}" data-tur="${du.tur}"
+        ${s === bugunS ? 'data-bugun="1"' : ''} ${gkSeritGun === s ? 'aria-pressed="true"' : ''}
+        ${gelecek ? 'disabled' : ''} aria-label="${gkUzunTarih(d)}">
+      <span class="gk-gun-ad">${GK_GUN_KISA[d.getDay()]}</span>
+      <span class="gk-gun-isaret">${du.yazi}</span>
+    </button>`;
+  }).join('');
+
+  return `<div class="gk-serit">${kutular}</div>${gkSeritGun ? gkGunDetayi(gkTarih(gkSeritGun), bugunS) : ''}`;
+}
+
+function gkGunDetayi(d, bugunS) {
+  const s = gkTarihStr(d);
+  const liste = gkGunGorevleri(d);
+  const baslik = s === bugunS ? 'Bugün' : gkUzunTarih(d);
+  if (!liste.length) return `<div class="gk-detay"><h3>${baslik}</h3><p>Bu gün görev yoktu.</p></div>`;
+  const satirlar = liste.map(g => {
+    const k = gkKayit(g.id, s);
+    let isaret, sonuc, tur;
+    if (k && k.durum === 'onaylandi') { isaret = '✓'; sonuc = `+${k.puan != null ? k.puan : g.puan}`; tur = 'iyi'; }
+    else if (k && k.durum === 'bekliyor') { isaret = '⏳'; sonuc = 'Onay bekliyor'; tur = 'bekliyor'; }
+    else if (k && k.durum === 'reddedildi') { isaret = '✕'; sonuc = `−${g.ceza}`; tur = 'kotu'; }
+    else if (s === bugunS) { isaret = '○'; sonuc = 'Henüz yapılmadı'; tur = 'acik'; }
+    else { isaret = '✕'; sonuc = `−${g.ceza}`; tur = 'kotu'; }
+    return `<li data-tur="${tur}"><span class="gk-detay-isaret" aria-hidden="true">${isaret}</span>
+      <span class="gk-detay-ad">${gkEsc(g.ikon)} ${gkEsc(g.ad)}</span><b>${sonuc}</b></li>`;
+  }).join('');
+  return `<div class="gk-detay"><h3>${baslik}</h3><ul>${satirlar}</ul></div>`;
+}
+
+document.getElementById('gkHafta').addEventListener('click', e => {
+  const b = e.target.closest('.gk-gun');
+  if (!b || b.disabled) return;
+  gkSeritGun = gkSeritGun === b.dataset.gun ? null : b.dataset.gun;
+  gkHaftaCiz(gkBugun());
+});
 
 function gkKart(g, tarihS, not) {
   const k = gkKayit(g.id, tarihS);
