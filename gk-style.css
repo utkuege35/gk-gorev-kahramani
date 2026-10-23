@@ -236,3 +236,15 @@ h1, h2, h3 { line-height: 1.15; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Güncelleme 1: haftalık görevler ---------- */
+.gk-baslik-ara { margin-top: 28px; }
+.gk-gorev-not { font-size: .95rem; font-weight: 600; opacity: .75; }
+.gk-ust-bosluk { margin-top: 14px; }
+.gk-form[data-tur="gunluk"] .gk-tur-tek,
+.gk-form[data-tur="gunluk"] .gk-tur-tekrar,
+.gk-form[data-tur="tekrar"] .gk-tur-gunluk,
+.gk-form[data-tur="tekrar"] .gk-tur-tek,
+.gk-form[data-tur="tek"] .gk-tur-gunluk,
+.gk-form[data-tur="tek"] .gk-tur-tekrar { display: none; }
+.gk-ebeveyn select:disabled { opacity: .6; }
