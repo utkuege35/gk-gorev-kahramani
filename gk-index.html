@@ -68,7 +68,7 @@ function gkCiz() {
 }
 
 function gkHaftaCiz(bugun) {
-  const odul = gk.oduller.find(o => o.aktif && o.donem === 'hafta');
+  const odul = gkOduller().find(o => o.aktif && o.donem === 'hafta');
   const esik = odul ? odul.esik_yuzde : 80;
   const donem = gkDonem('hafta', bugun, gk.ayarlar.hafta_baslangic_gunu);
   const h = gkDonemHesapla(donem.bas, donem.bit);
@@ -174,6 +174,12 @@ function gkKart(g, tarihS, not) {
   </button></li>`;
 }
 
+function gkHaftalikNot(g, sonGun) {
+  if (g.kategori === 'kitap') return `Kitabı bitir, son gün ${sonGun}`;
+  if (g.kategori === 'telafi') return `Telafi görevi, son gün ${sonGun}`;
+  return `Son gün ${sonGun}`;
+}
+
 function gkTamamSayisi(liste, tarihS) {
   return liste.filter(g => { const k = gkKayit(g.id, tarihS); return k && k.durum !== 'reddedildi'; }).length;
 }
@@ -199,7 +205,7 @@ function gkGorevleriCiz(bugun) {
   document.getElementById('gkHaftaOzet').textContent =
     `Bu haftanın görevleri (${gkTamamSayisi(haftalik, haftaS)}/${haftalik.length})`;
   document.getElementById('gkHaftaGorevler').innerHTML =
-    haftalik.map(g => gkKart(g, haftaS, `Son gün ${sonGun}`)).join('');
+    haftalik.map(g => gkKart(g, haftaS, gkHaftalikNot(g, sonGun))).join('');
 
   gkYeniDamga = null;
 }
@@ -207,9 +213,9 @@ function gkGorevleriCiz(bugun) {
 function gkOdulleriCiz(bugun) {
   const hb = gk.ayarlar.hafta_baslangic_gunu;
   const kutu = document.getElementById('gkOdulListe');
-  const liste = gkOdullerSirali(gk.oduller.filter(o => o.aktif));
+  const liste = gkOdullerSirali(gkOduller().filter(o => o.aktif));
   if (!liste.length) {
-    kutu.innerHTML = '<p class="gk-bos">Henüz ödül eklenmedi.</p>';
+    kutu.innerHTML = '<p class="gk-bos">Henüz ödül eklenmedi.</p>' + gkDikkatHtml(bugun);
     return;
   }
   kutu.innerHTML = liste.map(o => {
@@ -238,6 +244,38 @@ function gkOdulleriCiz(bugun) {
         ${gkCubuk(d.net, d.hedef)}
         <p><b>${d.net}</b> / ${d.hedef} puan${kalan ? `, ${kalan} puan kaldı` : ', hedefe ulaştın!'}</p>
         ${o.aciklama ? `<p class="gk-not">${gkEsc(o.aciklama)}</p>` : ''}
+        ${oncekiNot}
+      </div>
+    </article>`;
+  }).join('') + gkDikkatHtml(bugun);
+}
+
+// ---------- Cezalar (Dikkat kartları) ----------
+function gkDikkatHtml(bugun) {
+  const hb = gk.ayarlar.hafta_baslangic_gunu;
+  const liste = gkOdullerSirali(gkCezalar().filter(o => o.aktif));
+  if (!liste.length) return '';
+  return '<h2 class="gk-baslik gk-baslik-ara">Dikkat</h2>' + liste.map(o => {
+    const donem = gkDonem(o.donem, bugun, hb);
+    const yuzde = gkGidisat(donem);
+    let durum;
+    if (yuzde === null) durum = '<p class="gk-not">Dönem yeni başladı.</p>';
+    else if (yuzde >= o.esik_yuzde) durum = `<p class="gk-not iyi">Şu ana kadar %${Math.max(0, yuzde)}, güvendesin ✓</p>`;
+    else durum = `<p class="gk-uyari">Şu ana kadar %${Math.max(0, yuzde)}. Görevlerini yaparak %${o.esik_yuzde}'in üstüne çık!</p>`;
+
+    let oncekiNot = '';
+    const onceki = gkOncekiDonem(o.donem, donem, hb);
+    if (gkTarihStr(onceki.bit) >= gk.ayarlar.baslangic_tarihi) {
+      const od = gkOdulDurumu(o, onceki);
+      if (od.maks > 0 && od.dustu) oncekiNot = `<p class="gk-not">${GK_ONCEKI_ETIKET[o.donem]}: hedefin altında kaldın, telafi görevin var.</p>`;
+    }
+
+    return `<article class="gk-odul gk-ceza">
+      <span class="gk-odul-ikon" aria-hidden="true">${gkEsc(o.ikon)}</span>
+      <div class="gk-odul-govde">
+        <h3>${gkEsc(o.ad)}</h3>
+        <p class="gk-not">${GK_DONEM_ETIKET[o.donem]} başarı %${o.esik_yuzde}'in altında kalırsa telafi görevi olarak gelir.</p>
+        ${durum}
         ${oncekiNot}
       </div>
     </article>`;
