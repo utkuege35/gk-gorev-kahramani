@@ -287,3 +287,10 @@ h1, h2, h3 { line-height: 1.15; }
   .gk-gun-ad { font-size: .75rem; }
   .gk-gun-isaret { font-size: 1rem; }
 }
+
+/* ---------- Güncelleme 4: cezalar ve kitaplar ---------- */
+.gk-ceza { box-shadow: inset 6px 0 0 var(--gk-domates); }
+.gk-uyari { margin: 4px 0 0; font-weight: 700; color: var(--gk-domates); }
+.gk-bolum { font-size: 1.25rem; margin: 22px 0 6px; }
+.gk-bolum:first-child { margin-top: 0; }
+.gk-kutu > .gk-form[data-form="kitap"] { margin-top: 12px; }
