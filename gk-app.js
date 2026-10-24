@@ -169,12 +169,42 @@ function gkDonemHesapla(bas, bit) {
   return o;
 }
 
+// Ödül ya da ceza için bir dönemin sonucu
+// Ödül: net >= hedef ise kazanılır. Ceza: dönem sonunda net < hedef ise uygulanır
+// (onay bekleyen görev varken ceza kesinleşmez).
+// teslim: ödülde "teslim edildi", cezada "uygulandı" kaydı
 function gkOdulDurumu(odul, donem) {
   const h = gkDonemHesapla(donem.bas, donem.bit);
   const hedef = Math.ceil(h.maks * odul.esik_yuzde / 100);
   const basStr = gkTarihStr(donem.bas);
   const teslim = gk.teslimler.find(t => t.odul_id === odul.id && t.donem_baslangic === basStr);
-  return { ...h, hedef, kazandi: h.maks > 0 && h.net >= hedef, teslim };
+  return {
+    ...h, hedef, teslim,
+    kazandi: h.maks > 0 && h.net >= hedef,
+    dustu: h.maks > 0 && h.net < hedef && h.bekleyen === 0
+  };
+}
+
+// Dönemin dünkü güne kadar olan gidişatı (yüzde). Henüz geçmiş gün yoksa null.
+function gkGidisat(donem) {
+  const dun = gkGunEkle(gkBugun(), -1);
+  if (dun < donem.bas) return null;
+  const bit = dun < donem.bit ? dun : donem.bit;
+  const h = gkDonemHesapla(donem.bas, bit);
+  if (h.maks === 0) return null;
+  return Math.round(h.net / h.maks * 100);
+}
+
+function gkOduller() { return gk.oduller.filter(o => (o.tur || 'odul') === 'odul'); }
+function gkCezalar() { return gk.oduller.filter(o => o.tur === 'ceza'); }
+
+// Telafi görevi hangi haftaya eklenir: bu haftanın 3 veya daha fazla günü kaldıysa bu hafta,
+// yoksa gelecek hafta
+function gkTelafiHaftasi() {
+  const bugun = gkBugun();
+  const bas = gkHaftaBasi(bugun);
+  const kalanGun = 6 - Math.round((bugun - bas) / 86400000) + 1;
+  return gkTarihStr(kalanGun >= 3 ? bas : gkGunEkle(bas, 7));
 }
 
 // ===== 6) YAZMA İŞLEMLERİ =====
