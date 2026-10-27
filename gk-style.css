@@ -294,3 +294,55 @@ h1, h2, h3 { line-height: 1.15; }
 .gk-bolum { font-size: 1.25rem; margin: 22px 0 6px; }
 .gk-bolum:first-child { margin-top: 0; }
 .gk-kutu > .gk-form[data-form="kitap"] { margin-top: 12px; }
+
+/* =====================================================================
+   Güncelleme 8: Ebeveyn paneli koyu tema
+   ===================================================================== */
+.gk-ebeveyn {
+  --gk-k-zemin: #0E1530;
+  --gk-k-kutu: #172043;
+  --gk-k-form: #111A38;
+  --gk-k-cizgi: #2A3663;
+  --gk-k-yazi: #E6EBF8;
+  --gk-k-soluk: #9AA6CC;
+  --gk-k-dugme: #24305C;
+  --gk-k-vurgu: #4A6BE0;
+  color-scheme: dark;
+  background: var(--gk-k-zemin);
+  color: var(--gk-k-yazi);
+}
+.gk-ebeveyn .gk-ust p,
+.gk-ebeveyn .gk-not,
+.gk-ebeveyn .gk-ara,
+.gk-ebeveyn .gk-satir-ad small,
+.gk-ebeveyn .gk-geri { color: var(--gk-k-soluk); }
+.gk-ebeveyn .gk-not.iyi { color: var(--gk-cimen); }
+
+.gk-ebeveyn .gk-sekmeler button { background: var(--gk-k-kutu); color: var(--gk-k-soluk); }
+.gk-ebeveyn .gk-sekmeler button[aria-selected="true"] { background: var(--gk-k-vurgu); color: #fff; }
+
+.gk-ebeveyn .gk-kutu,
+.gk-ebeveyn .gk-kapi { background: var(--gk-k-kutu); border-color: var(--gk-k-cizgi); }
+.gk-ebeveyn .gk-satir { border-top-color: var(--gk-k-cizgi); }
+.gk-ebeveyn .gk-cubuk { background: var(--gk-k-cizgi); }
+
+.gk-ebeveyn .gk-btn { background: var(--gk-k-dugme); color: #DCE3FF; }
+.gk-ebeveyn .gk-btn.ana { background: var(--gk-k-vurgu); color: #fff; }
+.gk-ebeveyn .gk-btn.onay { background: var(--gk-cimen-koyu); color: #fff; }
+.gk-ebeveyn .gk-btn.red { background: #C0392F; color: #fff; }
+
+.gk-ebeveyn .gk-etiket { background: var(--gk-k-dugme); color: #DCE3FF; }
+.gk-ebeveyn .gk-etiket[data-durum="bekliyor"] { background: #4A3A0A; color: #FFD66B; }
+.gk-ebeveyn .gk-etiket[data-durum="onaylandi"] { background: #12402B; color: #6FE0A6; }
+.gk-ebeveyn .gk-etiket[data-durum="reddedildi"],
+.gk-ebeveyn .gk-etiket[data-durum="kacirildi"] { background: #4A1A17; color: #FF9A90; }
+
+.gk-ebeveyn .gk-form { background: var(--gk-k-form); }
+.gk-ebeveyn input:not([type="checkbox"]),
+.gk-ebeveyn select {
+  background: var(--gk-k-zemin); color: var(--gk-k-yazi); border-color: var(--gk-k-cizgi);
+}
+.gk-ebeveyn .gk-gunler label,
+.gk-ebeveyn .gk-form .gk-onay-kutusu { background: var(--gk-k-zemin); border-color: var(--gk-k-cizgi); }
+.gk-ebeveyn .gk-mesaj { background: #2A3663; }
+.gk-ebeveyn .gk-mesaj[data-tur="hata"] { background: #C0392F; }
