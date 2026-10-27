@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="gk-style.css">
+<style>.gk-form[data-tur="tek"] .gk-baslangic-alani { display: none; }</style>
 </head>
 <body class="gk-ebeveyn">
 <div class="gk-sayfa">
@@ -399,6 +400,8 @@ function gkGorevForm(g) {
       <select name="hafta">${haftalar.map(hs => `<option value="${hs}" ${g.hafta === hs ? 'selected' : ''}>${gkHaftaEtiketi(hs)}</option>`).join('')}</select>
     </label>
     <p class="gk-not gk-tur-tekrar">Hafta içinde istediği gün bir kez yapar. Yeni eklenen haftalık görev bir sonraki haftadan başlar.</p>
+    <label class="gk-baslangic-alani">Başlangıç tarihi<input name="baslangic" type="date" value="${g.baslangic || gkTarihStr(gkBugun())}"></label>
+    <p class="gk-not gk-baslangic-alani">Görev bu tarihten itibaren sayılır, öncesi için ceza yazmaz. Haftalık görevler bu tarihten sonraki ilk hafta başından itibaren sayılır.</p>
     <label>Sıra<input name="sira" type="number" value="${g.sira}"></label>
     ${yeni ? '' : '<p class="gk-not">Puan ve gün değişiklikleri geçmiş günlerin hesabını da etkiler.</p>'}
     <div class="gk-dugmeler">
@@ -456,13 +459,16 @@ async function gkGorevKaydet(btn) {
   if (!(ceza >= 0)) { gkMesaj('Düşen puan 0 veya daha fazla olmalı.', 'hata'); return false; }
   if (tur === 'gunluk' && !gunler.length) { gkMesaj('En az bir gün seç.', 'hata'); return false; }
   if (tur !== 'gunluk') gunler = [0, 1, 2, 3, 4, 5, 6];
+  const baslangic = deger('baslangic');
+  if (tur !== 'tek' && !baslangic) { gkMesaj('Başlangıç tarihini seç.', 'hata'); return false; }
   const veri = {
     ad, ikon, puan, ceza, gunler, sira,
     tip: tur === 'gunluk' ? 'gunluk' : 'haftalik',
     hafta: tur === 'tek' ? deger('hafta') : null
   };
+  if (tur !== 'tek') veri.baslangic = baslangic;
   if (id) gkKontrol(await gkDb.from('gk_gorevler').update(veri).eq('id', id));
-  else gkKontrol(await gkDb.from('gk_gorevler').insert({ ...veri, baslangic: gkTarihStr(gkBugun()) }));
+  else gkKontrol(await gkDb.from('gk_gorevler').insert({ baslangic: gkTarihStr(gkBugun()), ...veri }));
   gkAcikForm = null;
   return true;
 }
