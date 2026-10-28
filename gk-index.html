@@ -97,15 +97,18 @@ function gkGunDurumu(d, bugunS) {
   if (s > bugunS) return { tur: 'gelecek', yazi: '' };
   const liste = gkGunGorevleri(d);
   if (!liste.length) return { tur: 'bos', yazi: '–' };
-  let yapilan = 0;
+  let yapilan = 0, sayilan = 0;
   for (const g of liste) {
     const k = gkKayit(g.id, s);
+    if (k && k.durum === 'muaf') continue;
+    sayilan++;
     if (k && (k.durum === 'onaylandi' || k.durum === 'bekliyor')) yapilan++;
   }
-  if (yapilan === liste.length) return { tur: 'tam', yazi: '★' };
-  if (s === bugunS) return { tur: 'bugun', yazi: `${yapilan}/${liste.length}` };
-  if (yapilan === 0) return { tur: 'kotu', yazi: `0/${liste.length}` };
-  return { tur: 'yarim', yazi: `${yapilan}/${liste.length}` };
+  if (!sayilan) return { tur: 'bos', yazi: '–' };
+  if (yapilan === sayilan) return { tur: 'tam', yazi: '★' };
+  if (s === bugunS) return { tur: 'bugun', yazi: `${yapilan}/${sayilan}` };
+  if (yapilan === 0) return { tur: 'kotu', yazi: `0/${sayilan}` };
+  return { tur: 'yarim', yazi: `${yapilan}/${sayilan}` };
 }
 
 function gkGunSeridi(donem, bugun) {
@@ -137,7 +140,8 @@ function gkGunDetayi(d, bugunS) {
   const satirlar = liste.map(g => {
     const k = gkKayit(g.id, s);
     let isaret, sonuc, tur;
-    if (k && k.durum === 'onaylandi') { isaret = '✓'; sonuc = `+${k.puan != null ? k.puan : g.puan}`; tur = 'iyi'; }
+    if (k && k.durum === 'muaf') { isaret = '–'; sonuc = 'Yoktu'; tur = 'muaf'; }
+    else if (k && k.durum === 'onaylandi') { isaret = '✓'; sonuc = `+${k.puan != null ? k.puan : g.puan}`; tur = 'iyi'; }
     else if (k && k.durum === 'bekliyor') { isaret = '⏳'; sonuc = 'Onay bekliyor'; tur = 'bekliyor'; }
     else if (k && k.durum === 'reddedildi') { isaret = '✕'; sonuc = `−${g.ceza}`; tur = 'kotu'; }
     else if (s === bugunS) { isaret = '○'; sonuc = 'Henüz yapılmadı'; tur = 'acik'; }
@@ -162,7 +166,8 @@ function gkKart(g, tarihS, not) {
     acik: `+${g.puan} puan`,
     bekliyor: 'Onay bekliyor',
     onaylandi: `+${k && k.puan != null ? k.puan : g.puan} kazandın`,
-    reddedildi: `−${g.ceza} puan`
+    reddedildi: `−${g.ceza} puan`,
+    muaf: g.tip === 'haftalik' ? 'Bu hafta yok' : 'Bugün yok'
   }[durum];
   const damga = { bekliyor: '✓', onaylandi: '★', reddedildi: '✕' }[durum];
   return `<li><button class="gk-gorev" data-id="${g.id}" data-tarih="${tarihS}" data-durum="${durum}">
@@ -181,7 +186,10 @@ function gkHaftalikNot(g, sonGun) {
 }
 
 function gkTamamSayisi(liste, tarihS) {
-  return liste.filter(g => { const k = gkKayit(g.id, tarihS); return k && k.durum !== 'reddedildi'; }).length;
+  return liste.filter(g => { const k = gkKayit(g.id, tarihS); return k && k.durum !== 'reddedildi' && k.durum !== 'muaf'; }).length;
+}
+function gkSayilanSayisi(liste, tarihS) {
+  return liste.filter(g => { const k = gkKayit(g.id, tarihS); return !(k && k.durum === 'muaf'); }).length;
 }
 
 function gkGorevleriCiz(bugun) {
@@ -191,7 +199,7 @@ function gkGorevleriCiz(bugun) {
   const liste = gkGunGorevleri(bugun);
   const ul = document.getElementById('gkGorevler');
   document.getElementById('gkGunOzet').textContent =
-    liste.length ? `Bugünün görevleri (${gkTamamSayisi(liste, s)}/${liste.length})` : 'Bugünün görevleri';
+    liste.length ? `Bugünün görevleri (${gkTamamSayisi(liste, s)}/${gkSayilanSayisi(liste, s)})` : 'Bugünün görevleri';
   ul.innerHTML = liste.length
     ? liste.map(g => gkKart(g, s)).join('')
     : '<li class="gk-bos">Bugün için görev yok. Tadını çıkar!</li>';
@@ -203,7 +211,7 @@ function gkGorevleriCiz(bugun) {
   const sonGun = GK_GUNLER[gkGunEkle(haftaBas, 6).getDay()];
   document.getElementById('gkHaftalikBolum').hidden = !haftalik.length;
   document.getElementById('gkHaftaOzet').textContent =
-    `Bu haftanın görevleri (${gkTamamSayisi(haftalik, haftaS)}/${haftalik.length})`;
+    `Bu haftanın görevleri (${gkTamamSayisi(haftalik, haftaS)}/${gkSayilanSayisi(haftalik, haftaS)})`;
   document.getElementById('gkHaftaGorevler').innerHTML =
     haftalik.map(g => gkKart(g, haftaS, gkHaftalikNot(g, sonGun))).join('');
 
@@ -290,6 +298,7 @@ async function gkKartTikla(e) {
   const durum = b.dataset.durum;
   if (durum === 'onaylandi') { gkMesaj('Bu görev onaylandı, aferin!'); return; }
   if (durum === 'reddedildi') { gkMesaj('Bu görev yapılmadı olarak işaretlendi.'); return; }
+  if (durum === 'muaf') { gkMesaj('Bu görev bu sefer yok, puanını etkilemez.'); return; }
   if (durum === 'bekliyor' && !confirm('İşareti geri almak istiyor musun?')) return;
   b.disabled = true;
   try {
