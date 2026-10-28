@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="gk-style.css?v=10">
+<link rel="stylesheet" href="gk-style.css?v=11">
 </head>
 <body class="gk-cocuk">
 <div class="gk-sayfa">
@@ -18,7 +18,7 @@
       <h1 id="gkSelam">Merhaba!</h1>
       <p id="gkTarih"></p>
     </div>
-    <div class="gk-toplam" aria-label="Toplam puan"><b id="gkToplam">0</b><small>puan</small></div>
+    <button class="gk-toplam" id="gkToplamDugme" aria-label="Toplam puan, geçmişi gör"><b id="gkToplam">0</b><small>puan</small></button>
   </header>
 
   <nav class="gk-sekmeler" role="tablist">
@@ -41,12 +41,22 @@
     </section>
   </main>
 
+  <div class="gk-pencere" id="gkGecmis" hidden>
+    <div class="gk-pencere-kutu" role="dialog" aria-modal="true" aria-labelledby="gkGecmisBaslik">
+      <div class="gk-pencere-ust">
+        <h2 id="gkGecmisBaslik">Puan geçmişi</h2>
+        <button class="gk-kapat" id="gkGecmisKapat" aria-label="Kapat">✕</button>
+      </div>
+      <div class="gk-pencere-govde" id="gkGecmisIcerik"></div>
+    </div>
+  </div>
+
   <footer class="gk-alt"><a href="gk-ebeveyn.html">Ebeveyn girişi</a></footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="gk-ayar.js?v=10"></script>
-<script src="gk-app.js?v=10"></script>
+<script src="gk-ayar.js?v=11"></script>
+<script src="gk-app.js?v=11"></script>
 <script>
 const GK_ONCEKI_ETIKET = { hafta: 'Geçen hafta', ay: 'Geçen ay', ceyrek: 'Önceki 3 ay', yariyil: 'Önceki 6 ay' };
 let gkYeniDamga = null;
@@ -85,7 +95,7 @@ function gkHaftaCiz(bugun) {
   document.getElementById('gkHafta').innerHTML = `
     <div class="gk-hafta-ust">
       <h2>Bu hafta</h2>
-      <span class="gk-hafta-sayi">${h.net}<small> / ${hedef} puan</small></span>
+      <button class="gk-hafta-sayi" data-gecmis="hafta" aria-label="Bu haftanın puan geçmişi">${h.net}<small> / ${hedef} puan</small></button>
     </div>
     ${gkCubuk(h.net, hedef)}
     <p>${gkEsc(not)}</p>
@@ -156,6 +166,7 @@ function gkGunDetayi(d, bugunS) {
 }
 
 document.getElementById('gkHafta').addEventListener('click', e => {
+  if (e.target.closest('[data-gecmis="hafta"]')) { gkGecmisAc('hafta'); return; }
   const b = e.target.closest('.gk-gun');
   if (!b || b.disabled) return;
   gkSeritGun = gkSeritGun === b.dataset.gun ? null : b.dataset.gun;
@@ -317,6 +328,66 @@ async function gkKartTikla(e) {
   }
   await gkYenile();
 }
+// ---------- Puan geçmişi penceresi ----------
+function gkGecmisAc(kapsam) {
+  const bugun = gkBugun();
+  const hafta = gkDonem('hafta', bugun, gk.ayarlar.hafta_baslangic_gunu);
+  const bas = kapsam === 'hafta' ? hafta.bas : gkTarih(gk.ayarlar.baslangic_tarihi);
+  const { satirlar, bekleyen } = gkPuanHareketleri(bas, hafta.bit);
+
+  const kazanilan = satirlar.filter(x => x.puan > 0).reduce((a, x) => a + x.puan, 0);
+  const dusen = satirlar.filter(x => x.puan < 0).reduce((a, x) => a + x.puan, 0);
+  const toplam = kazanilan + dusen;
+  const isaretli = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+
+  // Günlere göre grupla, en yeni gün üstte
+  const gunler = new Map();
+  for (const x of satirlar) {
+    if (!gunler.has(x.tarih)) gunler.set(x.tarih, []);
+    gunler.get(x.tarih).push(x);
+  }
+  const sirali = [...gunler.keys()].sort().reverse();
+
+  let h = `<p class="gk-gecmis-kapsam">${kapsam === 'hafta'
+    ? 'Bu hafta, ' + gkDonemAdi('hafta', hafta)
+    : gkUzunTarih(gkTarih(gk.ayarlar.baslangic_tarihi)) + ' tarihinden bu yana'}</p>
+    <div class="gk-gecmis-ozet">
+      <div><small>Kazanılan</small><b class="arti">+${kazanilan}</b></div>
+      <div><small>Düşen</small><b class="eksi">${isaretli(dusen)}</b></div>
+      <div><small>Toplam</small><b>${toplam}</b></div>
+    </div>`;
+  if (bekleyen) h += `<p class="gk-not">${bekleyen} görev onay bekliyor, onaylanınca buraya eklenecek.</p>`;
+  if (!satirlar.length) h += '<p class="gk-not">Henüz puan hareketi yok.</p>';
+
+  for (const t of sirali) {
+    const liste = gunler.get(t);
+    const gunToplam = liste.reduce((a, x) => a + x.puan, 0);
+    h += `<section class="gk-gecmis-gun">
+      <h3><span>${t === gkTarihStr(bugun) ? 'Bugün' : gkUzunTarih(gkTarih(t))}</span>
+        <span class="${gunToplam >= 0 ? 'arti' : 'eksi'}">${isaretli(gunToplam)}</span></h3>
+      <ul>${liste.map(x => `<li>
+        <span class="gk-gecmis-ad">${gkEsc(x.gorev.ikon)} ${gkEsc(x.gorev.ad)}<small>${x.aciklama}</small></span>
+        <b class="${x.puan >= 0 ? 'arti' : 'eksi'}">${isaretli(x.puan)}</b>
+      </li>`).join('')}</ul>
+    </section>`;
+  }
+
+  document.getElementById('gkGecmisBaslik').textContent = kapsam === 'hafta' ? 'Bu haftanın puanları' : 'Puan geçmişi';
+  document.getElementById('gkGecmisIcerik').innerHTML = h;
+  const p = document.getElementById('gkGecmis');
+  p.hidden = false;
+  document.body.classList.add('gk-kilitli');
+  document.getElementById('gkGecmisKapat').focus();
+}
+function gkGecmisKapat() {
+  document.getElementById('gkGecmis').hidden = true;
+  document.body.classList.remove('gk-kilitli');
+}
+document.getElementById('gkToplamDugme').addEventListener('click', () => gkGecmisAc('tumu'));
+document.getElementById('gkGecmisKapat').addEventListener('click', gkGecmisKapat);
+document.getElementById('gkGecmis').addEventListener('click', e => { if (e.target.id === 'gkGecmis') gkGecmisKapat(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.getElementById('gkGecmis').hidden) gkGecmisKapat(); });
+
 document.getElementById('gkGorevler').addEventListener('click', gkKartTikla);
 document.getElementById('gkHaftaGorevler').addEventListener('click', gkKartTikla);
 
