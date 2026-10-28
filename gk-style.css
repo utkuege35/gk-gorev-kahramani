@@ -346,3 +346,15 @@ h1, h2, h3 { line-height: 1.15; }
 .gk-ebeveyn .gk-form .gk-onay-kutusu { background: var(--gk-k-zemin); border-color: var(--gk-k-cizgi); }
 .gk-ebeveyn .gk-mesaj { background: #2A3663; }
 .gk-ebeveyn .gk-mesaj[data-tur="hata"] { background: #C0392F; }
+
+/* ---------- Güncelleme 9: "Bugün yok" durumu ---------- */
+.gk-gorev[data-durum="muaf"] {
+  background: rgba(255, 255, 255, .1); color: rgba(255, 255, 255, .65);
+  box-shadow: none; cursor: default;
+}
+.gk-gorev[data-durum="muaf"]:active { transform: none; box-shadow: none; }
+.gk-gorev[data-durum="muaf"] .gk-gorev-ikon { filter: grayscale(1); opacity: .6; }
+.gk-gorev[data-durum="muaf"] .gk-gorev-durum { background: rgba(255, 255, 255, .15); color: #fff; }
+.gk-detay li[data-tur="muaf"] { opacity: .55; }
+.gk-etiket[data-durum="muaf"] { background: var(--gk-sis); color: var(--gk-gri); }
+.gk-ebeveyn .gk-etiket[data-durum="muaf"] { background: #2A3663; color: #9AA6CC; }
