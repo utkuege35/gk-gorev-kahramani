@@ -395,3 +395,21 @@ button.gk-hafta-sayi { border: 0; background: none; color: inherit; font: inheri
 .gk-gecmis-ad small { display: block; font-weight: 500; color: var(--gk-gri); font-size: .85rem; }
 .gk-pencere .arti { color: var(--gk-cimen-koyu); }
 .gk-pencere .eksi { color: var(--gk-domates); }
+
+/* ---------- Güncelleme 12: puan geçmişinde gün başlıkları belirgin ---------- */
+.gk-gecmis-gun { margin-top: 14px; }
+.gk-gecmis-gun h3 {
+  position: sticky; top: 0; z-index: 1;
+  margin: 0 0 2px; padding: 8px 12px;
+  align-items: center;
+  background: var(--gk-gece); color: #fff;
+  border-radius: 12px; font-size: 1.05rem;
+}
+.gk-pencere .gk-gecmis-gun h3 .arti,
+.gk-pencere .gk-gecmis-gun h3 .eksi {
+  padding: 1px 12px; border-radius: 99px; color: #fff; font-weight: 800;
+}
+.gk-pencere .gk-gecmis-gun h3 .arti { background: var(--gk-cimen); }
+.gk-pencere .gk-gecmis-gun h3 .eksi { background: var(--gk-domates); }
+.gk-gecmis-gun ul { padding: 0 4px 0 12px; }
+.gk-gecmis-gun li:first-child { border-top: 0; }
