@@ -145,12 +145,14 @@ function gkHaftaGorevleri(haftaBas) {
 function gkDonemHesapla(bas, bit) {
   const bugunStr = gkTarihStr(gkBugun());
   const sonGun = (gk.ayarlar.hafta_baslangic_gunu + 6) % 7;
-  const o = { maks: 0, net: 0, kazanilan: 0, ceza: 0, yapilan: 0, kacirilan: 0, bekleyen: 0 };
+  const o = { maks: 0, net: 0, kazanilan: 0, ceza: 0, yapilan: 0, kacirilan: 0, bekleyen: 0, muaf: 0 };
 
   const isle = (g, kayitTarihi, sonTarih) => {
+    const k = gkKayit(g.id, kayitTarihi);
+    // "Bugün yok" işaretli görev: ne puan ne ceza, hedef hesabına da girmez
+    if (k && k.durum === 'muaf') { o.muaf++; return; }
     o.maks += g.puan;
     if (kayitTarihi > bugunStr) return;
-    const k = gkKayit(g.id, kayitTarihi);
     if (k && k.durum === 'onaylandi') { o.kazanilan += (k.puan ?? g.puan); o.yapilan++; }
     else if (k && k.durum === 'reddedildi') { o.ceza += g.ceza; o.kacirilan++; }
     else if (k && k.durum === 'bekliyor') { o.bekleyen++; }
