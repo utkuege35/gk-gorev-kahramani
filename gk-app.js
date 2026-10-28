@@ -171,6 +171,44 @@ function gkDonemHesapla(bas, bit) {
   return o;
 }
 
+// Puan hareketleri: gkDonemHesapla ile aynı kurallarla, satır satır
+// Her satır: { tarih, gorev, puan (+/-), aciklama }
+// Onaylanan/reddedilen haftalık görev onay gününe, yapılmayan haftalık görev haftanın son gününe yazılır.
+function gkPuanHareketleri(bas, bit) {
+  const bugunStr = gkTarihStr(gkBugun());
+  const sonGun = (gk.ayarlar.hafta_baslangic_gunu + 6) % 7;
+  const satirlar = [];
+  let bekleyen = 0;
+  const onayGunu = (k, yedek) => k.onay_zamani ? gkTarihStr(new Date(k.onay_zamani)) : yedek;
+
+  for (let d = new Date(bas); d <= bit; d = gkGunEkle(d, 1)) {
+    const s = gkTarihStr(d);
+    for (const g of gkGunGorevleri(d)) {
+      if (s > bugunStr) continue;
+      const k = gkKayit(g.id, s);
+      if (k && k.durum === 'muaf') continue;
+      if (k && k.durum === 'onaylandi') satirlar.push({ tarih: s, gorev: g, puan: k.puan ?? g.puan, aciklama: 'Yaptı' });
+      else if (k && k.durum === 'reddedildi') satirlar.push({ tarih: s, gorev: g, puan: -g.ceza, aciklama: 'Yapmadı' });
+      else if (k && k.durum === 'bekliyor') bekleyen++;
+      else if (s < bugunStr) satirlar.push({ tarih: s, gorev: g, puan: -g.ceza, aciklama: 'İşaretlenmedi' });
+    }
+    if (d.getDay() === sonGun) {
+      const haftaBas = gkGunEkle(d, -6);
+      const hs = gkTarihStr(haftaBas);
+      if (hs > bugunStr) continue;
+      for (const g of gkHaftaGorevleri(haftaBas)) {
+        const k = gkKayit(g.id, hs);
+        if (k && k.durum === 'muaf') continue;
+        if (k && k.durum === 'onaylandi') satirlar.push({ tarih: onayGunu(k, hs), gorev: g, puan: k.puan ?? g.puan, aciklama: 'Haftalık görev, yaptı' });
+        else if (k && k.durum === 'reddedildi') satirlar.push({ tarih: onayGunu(k, hs), gorev: g, puan: -g.ceza, aciklama: 'Haftalık görev, yapmadı' });
+        else if (k && k.durum === 'bekliyor') bekleyen++;
+        else if (s < bugunStr) satirlar.push({ tarih: s, gorev: g, puan: -g.ceza, aciklama: 'Haftalık görev, yapılmadı' });
+      }
+    }
+  }
+  return { satirlar, bekleyen };
+}
+
 // Ödül ya da ceza için bir dönemin sonucu
 // Ödül: net >= hedef ise kazanılır. Ceza: dönem sonunda net < hedef ise uygulanır
 // (onay bekleyen görev varken ceza kesinleşmez).
