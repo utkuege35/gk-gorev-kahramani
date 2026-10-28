@@ -182,7 +182,8 @@ function gkGunSatiri(g, tarihS, gecti) {
       bekliyor: 'Onay bekliyor',
       onaylandi: `Yaptı, +${k && k.puan != null ? k.puan : g.puan}`,
       reddedildi: `Yapmadı, −${g.ceza}`,
-      kacirildi: `İşaretlenmedi, −${g.ceza}`
+      kacirildi: `İşaretlenmedi, −${g.ceza}`,
+      muaf: g.tip === 'haftalik' ? 'Bu hafta yok, sayılmıyor' : 'Bu gün yok, sayılmıyor'
     }[durum];
     const kim = k && k.onaylayan ? ` ${gkEsc(k.onaylayan)}` : '';
     const veri = `data-gorev="${g.id}" data-tarih="${tarihS}"`;
@@ -190,6 +191,7 @@ function gkGunSatiri(g, tarihS, gecti) {
       <span class="gk-satir-ad">${gkEsc(g.ikon)} ${gkEsc(g.ad)}<small><span class="gk-etiket" data-durum="${durum}">${etiket}</span>${kim}</small></span>
       <button class="gk-btn onay" data-islem="onayla" ${veri} ${durum === 'onaylandi' ? 'disabled' : ''}>Yaptı</button>
       <button class="gk-btn red" data-islem="reddet" ${veri} ${durum === 'reddedildi' ? 'disabled' : ''}>Yapmadı</button>
+      <button class="gk-btn" data-islem="muaf" ${veri} ${durum === 'muaf' ? 'disabled' : ''}>Yok</button>
       <button class="gk-btn" data-islem="sifirla" ${veri} ${k ? '' : 'disabled'}>Sıfırla</button>
     </div>`;
 }
@@ -625,6 +627,10 @@ async function gkIslem(btn) {
       case 'reddet':
         await gkDurumYaz(gkGorevBul(gorevId), tarih, 'reddedildi', gkOnaylayan());
         mesaj = 'Yapılmadı olarak işaretlendi.';
+        break;
+      case 'muaf':
+        await gkDurumYaz(gkGorevBul(gorevId), tarih, 'muaf', gkOnaylayan());
+        mesaj = 'Bu görev o gün için sayılmayacak.';
         break;
       case 'sifirla':
         await gkKayitSil(gorevId, tarih);
