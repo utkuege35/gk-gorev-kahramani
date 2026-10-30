@@ -15,8 +15,9 @@ const gkDb = window.supabase.createClient(GK_SUPABASE_URL, GK_SUPABASE_ANON_KEY,
 const GK_GUNLER = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
 const GK_GUN_KISA = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
 const GK_AYLAR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-const GK_DONEM_ETIKET = { hafta: 'Haftalık', ay: 'Aylık', ceyrek: '3 aylık', yariyil: '6 aylık' };
-const GK_DONEM_SIRA = { hafta: 1, ay: 2, ceyrek: 3, yariyil: 4 };
+const GK_DONEM_ETIKET = { hafta: 'Haftalık', hafta3: '3 haftalık', ay: 'Aylık', ceyrek: '3 aylık', yariyil: '6 aylık' };
+const GK_DONEM_SIRA = { hafta: 1, hafta3: 2, ay: 3, ceyrek: 4, yariyil: 5 };
+const GK_DONEM_TURLERI = ['hafta', 'hafta3', 'ay', 'ceyrek', 'yariyil'];
 
 // ===== 3) TARİH YARDIMCILARI (yerel saatle çalışır) =====
 function gkTarihStr(d) {
@@ -39,9 +40,9 @@ function gkUzunTarih(d) {
   return d.getDate() + ' ' + GK_AYLAR[d.getMonth()] + ' ' + GK_GUNLER[d.getDay()];
 }
 
-// Dönem uzunlukları (gün): ay = 4 hafta, 3 ay = 12 hafta, 6 ay = 24 hafta
-const GK_DONEM_GUN = { ay: 28, ceyrek: 84, yariyil: 168 };
-const GK_DONEM_SIRA_AD = { ay: 'ay', ceyrek: '3 aylık dönem', yariyil: '6 aylık dönem' };
+// Dönem uzunlukları (gün): 3 hafta, ay = 4 hafta, 3 ay = 12 hafta, 6 ay = 24 hafta
+const GK_DONEM_GUN = { hafta3: 21, ay: 28, ceyrek: 84, yariyil: 168 };
+const GK_DONEM_SIRA_AD = { hafta3: '3 haftalık dönem', ay: 'ay', ceyrek: '3 aylık dönem', yariyil: '6 aylık dönem' };
 
 // Bir tarihin içinde bulunduğu dönemin başı ve sonu.
 // Hafta: haftanın başlangıç gününe göre. Ay / 3 ay / 6 ay: uygulamanın başlangıç tarihinden
@@ -275,10 +276,12 @@ function gkTakvimHtml() {
       <span class="gk-takvim-bitis">${gkKisaTarih(d.bit, d.bit.getFullYear() !== bugun.getFullYear())}<small>${kalanYazi}</small></span>
     </li>`;
   };
+  // Hafta her zaman, diğer dönemler sadece aktif bir ödül ya da cezada kullanılıyorsa gösterilir
+  const kullanilan = GK_DONEM_TURLERI.filter(t => t !== 'hafta' && gk.oduller.some(o => o.aktif && o.donem === t));
   return `<div class="gk-takvim">
     <div class="gk-takvim-ust"><h3>Takvim</h3><span>Bitiş</span></div>
     <p>Başlangıç: <b>${gkUzunTarih(bas)} ${bas.getFullYear()}</b></p>
-    <ul>${satir('hafta')}${satir('ay')}${satir('ceyrek')}${satir('yariyil')}</ul>
+    <ul>${satir('hafta')}${kullanilan.map(satir).join('')}</ul>
   </div>`;
 }
 
