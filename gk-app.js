@@ -39,22 +39,35 @@ function gkUzunTarih(d) {
   return d.getDate() + ' ' + GK_AYLAR[d.getMonth()] + ' ' + GK_GUNLER[d.getDay()];
 }
 
-// Bir tarihin içinde bulunduğu dönemin başı ve sonu
+// Dönem uzunlukları (gün): ay = 4 hafta, 3 ay = 12 hafta, 6 ay = 24 hafta
+const GK_DONEM_GUN = { ay: 28, ceyrek: 84, yariyil: 168 };
+const GK_DONEM_SIRA_AD = { ay: 'ay', ceyrek: '3 aylık dönem', yariyil: '6 aylık dönem' };
+
+// Bir tarihin içinde bulunduğu dönemin başı ve sonu.
+// Hafta: haftanın başlangıç gününe göre. Ay / 3 ay / 6 ay: uygulamanın başlangıç tarihinden
+// (o haftanın ilk gününden) itibaren 4 / 12 / 24 haftalık bloklar. sira: kaçıncı dönem olduğu.
 function gkDonem(tur, d, haftaBas) {
   if (tur === 'hafta') {
     const fark = (d.getDay() - haftaBas + 7) % 7;
     const bas = gkGunEkle(d, -fark);
     return { bas, bit: gkGunEkle(bas, 6) };
   }
-  const adim = { ay: 1, ceyrek: 3, yariyil: 6 }[tur];
-  const basAy = Math.floor(d.getMonth() / adim) * adim;
-  return {
-    bas: new Date(d.getFullYear(), basAy, 1),
-    bit: new Date(d.getFullYear(), basAy + adim, 0)
-  };
+  const uzunluk = GK_DONEM_GUN[tur];
+  const capa = gkDonem('hafta', gkTarih(gk.ayarlar.baslangic_tarihi), gk.ayarlar.hafta_baslangic_gunu).bas;
+  const gunFarki = Math.round((d - capa) / 86400000);
+  const sira = Math.floor(gunFarki / uzunluk);
+  const bas = gkGunEkle(capa, sira * uzunluk);
+  return { bas, bit: gkGunEkle(bas, uzunluk - 1), sira: sira + 1 };
 }
 function gkOncekiDonem(tur, donem, haftaBas) {
   return gkDonem(tur, gkGunEkle(donem.bas, -1), haftaBas);
+}
+function gkKisaTarih(d, yilla) {
+  return `${d.getDate()} ${GK_AYLAR[d.getMonth()]}${yilla ? ' ' + d.getFullYear() : ''}`;
+}
+function gkAralik(bas, bit) {
+  const yil = bas.getFullYear() !== bit.getFullYear();
+  return `${gkKisaTarih(bas, yil)} – ${gkKisaTarih(bit, yil)}`;
 }
 function gkDonemAdi(tur, d) {
   const { bas, bit } = d;
@@ -63,8 +76,8 @@ function gkDonemAdi(tur, d) {
       ? `${bas.getDate()}–${bit.getDate()} ${GK_AYLAR[bit.getMonth()]}`
       : `${bas.getDate()} ${GK_AYLAR[bas.getMonth()]} – ${bit.getDate()} ${GK_AYLAR[bit.getMonth()]}`;
   }
-  if (tur === 'ay') return `${GK_AYLAR[bas.getMonth()]} ${bas.getFullYear()}`;
-  return `${GK_AYLAR[bas.getMonth()]}–${GK_AYLAR[bit.getMonth()]} ${bas.getFullYear()}`;
+  const sira = d.sira || gkDonem(tur, bas).sira;
+  return `${sira}. ${GK_DONEM_SIRA_AD[tur]}, ${gkAralik(bas, bit)}`;
 }
 
 // ===== 4) VERİ =====
@@ -245,6 +258,28 @@ function gkTelafiHaftasi() {
   const bas = gkHaftaBasi(bugun);
   const kalanGun = 6 - Math.round((bugun - bas) / 86400000) + 1;
   return gkTarihStr(kalanGun >= 3 ? bas : gkGunEkle(bas, 7));
+}
+
+// Başlangıç tarihi ve içinde bulunulan dönemlerin bitiş tarihleri
+function gkTakvimHtml() {
+  const bugun = gkBugun();
+  const bas = gkTarih(gk.ayarlar.baslangic_tarihi);
+  const ref = bugun < bas ? bas : bugun;
+  const satir = tur => {
+    const d = gkDonem(tur, ref, gk.ayarlar.hafta_baslangic_gunu);
+    const etiket = tur === 'hafta' ? 'Bu hafta' : `${d.sira}. ${GK_DONEM_SIRA_AD[tur]}`;
+    const kalan = Math.round((d.bit - bugun) / 86400000);
+    const kalanYazi = kalan <= 0 ? 'bugün bitiyor' : `${kalan} gün kaldı`;
+    return `<li>
+      <span class="gk-takvim-ad">${etiket}<small>${gkAralik(d.bas, d.bit)}</small></span>
+      <span class="gk-takvim-bitis">${gkKisaTarih(d.bit, d.bit.getFullYear() !== bugun.getFullYear())}<small>${kalanYazi}</small></span>
+    </li>`;
+  };
+  return `<div class="gk-takvim">
+    <div class="gk-takvim-ust"><h3>Takvim</h3><span>Bitiş</span></div>
+    <p>Başlangıç: <b>${gkUzunTarih(bas)} ${bas.getFullYear()}</b></p>
+    <ul>${satir('hafta')}${satir('ay')}${satir('ceyrek')}${satir('yariyil')}</ul>
+  </div>`;
 }
 
 // ===== 6) YAZMA İŞLEMLERİ =====
