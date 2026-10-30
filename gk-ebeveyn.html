@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="gk-style.css">
+<link rel="stylesheet" href="gk-style.css?v=13">
 <style>.gk-form[data-tur="tek"] .gk-baslangic-alani { display: none; }</style>
 </head>
 <body class="gk-ebeveyn">
@@ -51,8 +51,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="gk-ayar.js"></script>
-<script src="gk-app.js"></script>
+<script src="gk-ayar.js?v=13"></script>
+<script src="gk-app.js?v=13"></script>
 <script>
 let gkSeciliGun = gkTarihStr(gkBugun());
 let gkAcikForm = null; // örn. 'gorev-12', 'gorev-yeni', 'odul-3', 'odul-yeni'
@@ -232,7 +232,7 @@ function gkOdulKarti(o, bugun, hb) {
 function gkOdullerHtml() {
   const bugun = gkBugun();
   const hb = gk.ayarlar.hafta_baslangic_gunu;
-  let h = '<h2 class="gk-bolum">Ödüller</h2>';
+  let h = `<div class="gk-kutu">${gkTakvimHtml()}</div><h2 class="gk-bolum">Ödüller</h2>`;
   h += gkOdullerSirali(gkOduller()).map(o => gkOdulKarti(o, bugun, hb)).join('');
   h += gkAcikForm === 'odul-yeni'
     ? `<div class="gk-kutu"><h2>Yeni ödül</h2>${gkOdulForm(null, 'odul')}</div>`
@@ -423,7 +423,7 @@ function gkAyarlarHtml() {
       <label>Puan hesabının başladığı tarih<input name="baslangic_tarihi" type="date" value="${a.baslangic_tarihi}"></label>
       <label>Hafta hangi gün başlar?<select name="hafta">${[1, 2, 3, 4, 5, 6, 0].map(n =>
         `<option value="${n}" ${a.hafta_baslangic_gunu === n ? 'selected' : ''}>${GK_GUNLER[n]}</option>`).join('')}</select></label>
-      <p class="gk-not">Cumartesi seçiliyse hafta Cuma akşamı kapanır, haftalık ödül hafta sonuna denk gelir.</p>
+      <p class="gk-not">Aylık, 3 aylık ve 6 aylık dönemler başlangıç tarihinden itibaren 4, 12 ve 24 haftalık bloklar olarak sayılır. Başlangıç tarihini değiştirirsen dönemler de kayar.</p>
       <div class="gk-dugmeler"><button class="gk-btn ana" data-islem="ayar-kaydet">Kaydet</button></div>
     </div>
   </div>
