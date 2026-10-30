@@ -413,3 +413,22 @@ button.gk-hafta-sayi { border: 0; background: none; color: inherit; font: inheri
 .gk-pencere .gk-gecmis-gun h3 .eksi { background: var(--gk-domates); }
 .gk-gecmis-gun ul { padding: 0 4px 0 12px; }
 .gk-gecmis-gun li:first-child { border-top: 0; }
+
+/* ---------- Güncelleme 13: takvim kutusu ---------- */
+.gk-takvim { background: var(--gk-kagit); color: var(--gk-murekkep); border-radius: 22px; padding: 16px 18px; margin-bottom: 14px; }
+.gk-takvim-ust { display: flex; justify-content: space-between; align-items: baseline; }
+.gk-takvim-ust h3 { margin: 0; font-size: 1.3rem; }
+.gk-takvim-ust span { font-size: .9rem; font-weight: 700; color: var(--gk-gri); }
+.gk-takvim p { margin: 2px 0 6px; color: var(--gk-gri); }
+.gk-takvim p b { color: var(--gk-murekkep); }
+.gk-takvim ul { list-style: none; margin: 0; padding: 0; }
+.gk-takvim li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--gk-cizgi); }
+.gk-takvim-ad, .gk-takvim-bitis { font-weight: 700; }
+.gk-takvim-bitis { text-align: right; }
+.gk-takvim small { display: block; font-weight: 500; font-size: .85rem; color: var(--gk-gri); }
+
+/* Ebeveyn paneli (koyu) */
+.gk-ebeveyn .gk-takvim { background: none; color: var(--gk-k-yazi); padding: 0; margin: 0; border-radius: 0; }
+.gk-ebeveyn .gk-takvim p, .gk-ebeveyn .gk-takvim small, .gk-ebeveyn .gk-takvim-ust span { color: var(--gk-k-soluk); }
+.gk-ebeveyn .gk-takvim p b { color: var(--gk-k-yazi); }
+.gk-ebeveyn .gk-takvim li { border-top-color: var(--gk-k-cizgi); }
