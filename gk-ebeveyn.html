@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="gk-style.css?v=14">
+<link rel="stylesheet" href="gk-style.css?v=15">
 <style>.gk-form[data-tur="tek"] .gk-baslangic-alani { display: none; }</style>
 </head>
 <body class="gk-ebeveyn">
@@ -51,8 +51,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="gk-ayar.js?v=14"></script>
-<script src="gk-app.js?v=14"></script>
+<script src="gk-ayar.js?v=15"></script>
+<script src="gk-app.js?v=15"></script>
 <script>
 let gkSeciliGun = gkTarihStr(gkBugun());
 let gkAcikForm = null; // örn. 'gorev-12', 'gorev-yeni', 'odul-3', 'odul-yeni'
@@ -60,7 +60,24 @@ let gkAcikForm = null; // örn. 'gorev-12', 'gorev-yeni', 'odul-3', 'odul-yeni'
 // ---------- Giriş ----------
 function gkOnaylayan() { try { return localStorage.getItem('gk_onaylayan') || ''; } catch { return ''; } }
 function gkOnaylayanKaydet(ad) { try { localStorage.setItem('gk_onaylayan', ad); } catch {} }
-function gkGirisVar() { try { return sessionStorage.getItem('gk_giris') === '1'; } catch { return false; } }
+// Giriş sadece bu sayfa açıkken hafızada tutulur; sayfa yeniden açılınca PIN tekrar sorulur.
+let gkGirisAcik = false;
+let gkSonHareket = Date.now();
+let gkGizlenme = null;
+const GK_BOSTA_KILIT_MS = 5 * 60 * 1000;   // 5 dakika işlem yapılmazsa kilitlenir
+const GK_ARKA_PLAN_KILIT_MS = 60 * 1000;   // 1 dakikadan uzun arka planda kalırsa kilitlenir
+function gkGirisVar() { return gkGirisAcik; }
+
+function gkKilitle() {
+  gkGirisAcik = false;
+  gkAcikForm = null;
+  ['gkPanelOnaylar', 'gkPanelOduller', 'gkPanelGorevler', 'gkPanelAyarlar'].forEach(id => {
+    document.getElementById(id).innerHTML = '';
+  });
+  document.getElementById('gkPanel').hidden = true;
+  document.getElementById('gkKapi').hidden = false;
+  document.getElementById('gkPin').value = '';
+}
 
 async function gkGirisYap() {
   const pin = document.getElementById('gkPin').value.trim();
@@ -72,7 +89,8 @@ async function gkGirisYap() {
     const { data, error } = await gkDb.rpc('gk_pin_kontrol', { p_pin: pin });
     if (error) throw error;
     if (!data) { gkMesaj('PIN hatalı.', 'hata'); return; }
-    try { sessionStorage.setItem('gk_giris', '1'); } catch {}
+    gkGirisAcik = true;
+    gkSonHareket = Date.now();
     gkOnaylayanKaydet(kim);
     gkPaneliAc();
   } catch (e) {
@@ -605,7 +623,7 @@ async function gkIslem(btn) {
   // Sadece ekranı değiştiren işlemler
   if (islem === 'form-ac') { gkAcikForm = btn.dataset.form; gkCiz(); return; }
   if (islem === 'form-kapat') { gkAcikForm = null; gkCiz(); return; }
-  if (islem === 'cikis') { try { sessionStorage.removeItem('gk_giris'); } catch {} location.reload(); return; }
+  if (islem === 'cikis') { gkKilitle(); return; }
   if (islem === 'kim-kaydet') {
     const ad = document.getElementById('gkKimAyar').value.trim();
     if (!ad) { gkMesaj('Bir ad yaz.', 'hata'); return; }
@@ -707,9 +725,25 @@ function gkSessizYenile() {
 gkSekmeKur();
 const gkKayitliKim = gkOnaylayan();
 if (gkKayitliKim === 'Anne' || gkKayitliKim === 'Baba') document.getElementById('gkKim').value = gkKayitliKim;
-if (gkGirisVar()) gkPaneliAc();
 setInterval(gkSessizYenile, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) gkSessizYenile(); });
+
+// ---------- Otomatik kilit ----------
+// Her dokunuş / tuş hareketi süreyi sıfırlar
+['click', 'keydown', 'touchstart', 'input'].forEach(t =>
+  document.addEventListener(t, () => { gkSonHareket = Date.now(); }, { passive: true }));
+// 5 dakika hareketsizlikte kilitle
+setInterval(() => {
+  if (gkGirisAcik && Date.now() - gkSonHareket > GK_BOSTA_KILIT_MS) gkKilitle();
+}, 15000);
+// Uygulama ya da sekme arka planda 1 dakikadan uzun kalırsa kilitle
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { gkGizlenme = Date.now(); return; }
+  if (gkGirisAcik && gkGizlenme && Date.now() - gkGizlenme > GK_ARKA_PLAN_KILIT_MS) { gkKilitle(); return; }
+  gkSessizYenile();
+});
+// Başka sayfaya geçerken kilitle; "geri" tuşuyla dönülünce de açık kalmasın
+window.addEventListener('pagehide', gkKilitle);
+window.addEventListener('pageshow', e => { if (e.persisted) gkKilitle(); });
 </script>
 </body>
 </html>
