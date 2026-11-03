@@ -286,25 +286,35 @@ function gkTakvimHtml() {
 }
 
 // ===== 6) YAZMA İŞLEMLERİ =====
+// Tablolara doğrudan yazılmaz. Çocuğun işaretlemesi ve ebeveyn işlemleri veritabanındaki kontrollü işlevlerden geçer;
+// ebeveyn işlemleri PIN ile alınan süreli bir oturum koduyla yapılır (kod yalnızca bellekte tutulur).
+let gkOturum = null;
+
+async function gkRpc(ad, args) {
+  const { data, error } = await gkDb.rpc(ad, args);
+  if (error) throw error;
+  if (!data || data.ok === false) {
+    const e = new Error((data && data.hata) || 'İşlem yapılamadı.');
+    e.gk = true;                                   // sunucunun kendi (anlaşılır) hata mesajı
+    e.oturumYok = !!(data && data.oturum === false);
+    throw e;
+  }
+  return data;
+}
+async function gkEbeveyn(islem, arg) {
+  return gkRpc('gk_ebeveyn', { p_oturum: gkOturum, p_islem: islem, p_arg: arg || {} });
+}
 async function gkIsaretle(gorevId, tarihStr) {
-  gkKontrol(await gkDb.from('gk_kayitlar').insert({ gorev_id: gorevId, tarih: tarihStr, durum: 'bekliyor' }));
+  await gkRpc('gk_isaretle', { p_gorev_id: gorevId, p_tarih: tarihStr });
 }
 async function gkIsaretKaldir(gorevId, tarihStr) {
-  gkKontrol(await gkDb.from('gk_kayitlar').delete()
-    .eq('gorev_id', gorevId).eq('tarih', tarihStr).eq('durum', 'bekliyor'));
+  await gkRpc('gk_isaret_kaldir', { p_gorev_id: gorevId, p_tarih: tarihStr });
 }
-async function gkDurumYaz(gorev, tarihStr, durum, onaylayan) {
-  gkKontrol(await gkDb.from('gk_kayitlar').upsert({
-    gorev_id: gorev.id,
-    tarih: tarihStr,
-    durum,
-    puan: durum === 'onaylandi' ? gorev.puan : null,
-    onay_zamani: new Date().toISOString(),
-    onaylayan: onaylayan || null
-  }, { onConflict: 'gorev_id,tarih' }));
+async function gkDurumYaz(gorev, tarihStr, durum) {
+  await gkEbeveyn('durum', { gorev_id: gorev.id, tarih: tarihStr, durum });
 }
 async function gkKayitSil(gorevId, tarihStr) {
-  gkKontrol(await gkDb.from('gk_kayitlar').delete().eq('gorev_id', gorevId).eq('tarih', tarihStr));
+  await gkEbeveyn('sifirla', { gorev_id: gorevId, tarih: tarihStr });
 }
 
 // ===== 7) ARAYÜZ YARDIMCILARI =====
@@ -328,7 +338,7 @@ function gkMesaj(metin, tur) {
 }
 function gkHata(e) {
   console.error(e);
-  gkMesaj('Bağlantı sorunu: ' + (e && e.message ? e.message : 'bilinmeyen hata'), 'hata');
+  gkMesaj(e && e.gk ? e.message : 'Bağlantı sorunu: ' + (e && e.message ? e.message : 'bilinmeyen hata'), 'hata');
 }
 function gkCubuk(net, hedef) {
   const yuzde = hedef > 0 ? Math.max(0, Math.min(100, net / hedef * 100)) : 0;
