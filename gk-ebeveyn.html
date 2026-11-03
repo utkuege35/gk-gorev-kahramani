@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="gk-style.css?v=15">
+<link rel="stylesheet" href="gk-style.css?v=16">
 <style>.gk-form[data-tur="tek"] .gk-baslangic-alani { display: none; }</style>
 </head>
 <body class="gk-ebeveyn">
@@ -51,8 +51,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="gk-ayar.js?v=15"></script>
-<script src="gk-app.js?v=15"></script>
+<script src="gk-ayar.js?v=16"></script>
+<script src="gk-app.js?v=16"></script>
 <script>
 let gkSeciliGun = gkTarihStr(gkBugun());
 let gkAcikForm = null; // örn. 'gorev-12', 'gorev-yeni', 'odul-3', 'odul-yeni'
@@ -69,6 +69,8 @@ const GK_ARKA_PLAN_KILIT_MS = 60 * 1000;   // 1 dakikadan uzun arka planda kalı
 function gkGirisVar() { return gkGirisAcik; }
 
 function gkKilitle() {
+  if (gkOturum) { const eski = gkOturum; gkDb.rpc('gk_cikis', { p_oturum: eski }).then(() => {}, () => {}); }   // sunucudaki oturumu da kapat
+  gkOturum = null;
   gkGirisAcik = false;
   gkAcikForm = null;
   ['gkPanelOnaylar', 'gkPanelOduller', 'gkPanelGorevler', 'gkPanelAyarlar'].forEach(id => {
@@ -86,9 +88,10 @@ async function gkGirisYap() {
   const btn = document.getElementById('gkGiris');
   btn.disabled = true;
   try {
-    const { data, error } = await gkDb.rpc('gk_pin_kontrol', { p_pin: pin });
+    const { data, error } = await gkDb.rpc('gk_giris', { p_pin: pin, p_kim: kim });
     if (error) throw error;
-    if (!data) { gkMesaj('PIN hatalı.', 'hata'); return; }
+    if (!data || !data.ok) { gkMesaj((data && data.hata) || 'PIN hatalı.', 'hata'); document.getElementById('gkPin').value = ''; return; }
+    gkOturum = data.oturum;
     gkGirisAcik = true;
     gkSonHareket = Date.now();
     gkOnaylayanKaydet(kim);
@@ -487,8 +490,7 @@ async function gkGorevKaydet(btn) {
     hafta: tur === 'tek' ? deger('hafta') : null
   };
   if (tur !== 'tek') veri.baslangic = baslangic;
-  if (id) gkKontrol(await gkDb.from('gk_gorevler').update(veri).eq('id', id));
-  else gkKontrol(await gkDb.from('gk_gorevler').insert({ baslangic: gkTarihStr(gkBugun()), ...veri }));
+  await gkEbeveyn('gorev_kaydet', { id, veri: id ? veri : { baslangic: gkTarihStr(gkBugun()), ...veri } });
   gkAcikForm = null;
   return true;
 }
@@ -502,11 +504,11 @@ async function gkGorevKaldir(id) {
     // Tek haftalık görev: tamamen silinir
     const uyari = kayitVar ? ' İşaretlenmiş kaydı da silinecek.' : '';
     if (!confirm(`“${g.ad}” silinsin mi?${uyari}`)) return false;
-    gkKontrol(await gkDb.from('gk_gorevler').delete().eq('id', id));
+    await gkEbeveyn('gorev_sil', { id });
   } else {
     if (!confirm(`“${g.ad}” kaldırılsın mı? Geçmiş puanlar korunur.`)) return false;
-    if (g.baslangic >= bugunS && !kayitVar) gkKontrol(await gkDb.from('gk_gorevler').delete().eq('id', id));
-    else gkKontrol(await gkDb.from('gk_gorevler').update({ bitis: bugunS }).eq('id', id));
+    if (g.baslangic >= bugunS && !kayitVar) await gkEbeveyn('gorev_sil', { id });
+    else await gkEbeveyn('gorev_kaydet', { id, veri: { bitis: bugunS } });
   }
   gkAcikForm = null;
   return true;
@@ -516,13 +518,13 @@ async function gkGorevGeriEkle(id) {
   const g = gkGorevBul(id);
   const bugunS = gkTarihStr(gkBugun());
   if (g.bitis >= bugunS) {
-    gkKontrol(await gkDb.from('gk_gorevler').update({ bitis: null }).eq('id', id));
+    await gkEbeveyn('gorev_kaydet', { id, veri: { bitis: null } });
   } else {
     // Aradaki günler ceza yazmasın diye bugünden başlayan yeni bir kopya eklenir
-    gkKontrol(await gkDb.from('gk_gorevler').insert({
+    await gkEbeveyn('gorev_kaydet', { veri: {
       ad: g.ad, ikon: g.ikon, puan: g.puan, ceza: g.ceza, gunler: g.gunler, sira: g.sira,
       tip: g.tip || 'gunluk', baslangic: bugunS
-    }));
+    } });
   }
 }
 
@@ -551,8 +553,7 @@ async function gkOdulKaydet(btn) {
     veri.telafi_puan = tp;
     veri.telafi_ceza = tc;
   }
-  if (id) gkKontrol(await gkDb.from('gk_oduller').update(veri).eq('id', id));
-  else gkKontrol(await gkDb.from('gk_oduller').insert(veri));
+  await gkEbeveyn('odul_kaydet', { id, veri });
   gkAcikForm = null;
   return true;
 }
@@ -565,10 +566,10 @@ async function gkKitapEkle(btn) {
   if (!ad) { gkMesaj('Kitabın adını yaz.', 'hata'); return false; }
   if (!(puan > 0)) { gkMesaj('Puan en az 1 olmalı.', 'hata'); return false; }
   const enBuyukSira = gk.gorevler.reduce((m, x) => Math.max(m, x.sira), 0);
-  gkKontrol(await gkDb.from('gk_gorevler').insert({
+  await gkEbeveyn('gorev_kaydet', { veri: {
     ad, ikon: '📕', puan, ceza: puan, tip: 'haftalik', hafta, kategori: 'kitap',
     gunler: [0, 1, 2, 3, 4, 5, 6], sira: enBuyukSira + 1, baslangic: gkTarihStr(gkBugun())
-  }));
+  } });
   return true;
 }
 
@@ -577,15 +578,7 @@ async function gkCezaUygula(btn) {
   if (!o) return false;
   const hafta = gkTelafiHaftasi();
   if (!confirm(`“${o.ad}” telafi görevi olarak eklensin mi?\n${gkHaftaEtiketi(hafta)}`)) return false;
-  const enBuyukSira = gk.gorevler.reduce((m, x) => Math.max(m, x.sira), 0);
-  gkKontrol(await gkDb.from('gk_gorevler').insert({
-    ad: o.ad, ikon: o.ikon, puan: o.telafi_puan, ceza: o.telafi_ceza,
-    tip: 'haftalik', hafta, kategori: 'telafi', gunler: [0, 1, 2, 3, 4, 5, 6],
-    sira: enBuyukSira + 1, baslangic: gkTarihStr(gkBugun())
-  }));
-  gkKontrol(await gkDb.from('gk_odul_teslimleri').insert({
-    odul_id: o.id, donem_baslangic: btn.dataset.donem, teslim_eden: gkOnaylayan() || null
-  }));
+  await gkEbeveyn('telafi_uygula', { odul_id: o.id, donem_baslangic: btn.dataset.donem, hafta });
   return true;
 }
 
@@ -596,8 +589,7 @@ async function gkAyarKaydet(btn) {
   const hafta = Number(f.querySelector('[name=hafta]').value);
   if (!cocuk_adi) { gkMesaj('Çocuğun adını yaz.', 'hata'); return false; }
   if (!baslangic_tarihi) { gkMesaj('Başlangıç tarihini seç.', 'hata'); return false; }
-  gkKontrol(await gkDb.from('gk_ayarlar')
-    .update({ cocuk_adi, baslangic_tarihi, hafta_baslangic_gunu: hafta }).eq('id', 1));
+  await gkEbeveyn('ayar_kaydet', { cocuk_adi, baslangic_tarihi, hafta_baslangic_gunu: hafta });
   return true;
 }
 
@@ -608,9 +600,7 @@ async function gkPinDegistir(btn) {
   const tekrar = f.querySelector('[name=tekrar]').value.trim();
   if (yeni.length < 4) { gkMesaj('Yeni PIN en az 4 hane olmalı.', 'hata'); return false; }
   if (yeni !== tekrar) { gkMesaj('Yeni PIN’ler birbirini tutmuyor.', 'hata'); return false; }
-  const { data, error } = await gkDb.rpc('gk_pin_degistir', { p_eski: eski, p_yeni: yeni });
-  if (error) throw error;
-  if (!data) { gkMesaj('Mevcut PIN hatalı.', 'hata'); return false; }
+  await gkEbeveyn('pin_degistir', { eski, yeni });
   return true;
 }
 
@@ -639,15 +629,15 @@ async function gkIslem(btn) {
     let tamam = true;
     switch (islem) {
       case 'onayla':
-        await gkDurumYaz(gkGorevBul(gorevId), tarih, 'onaylandi', gkOnaylayan());
+        await gkDurumYaz(gkGorevBul(gorevId), tarih, 'onaylandi');
         mesaj = 'Onaylandı.';
         break;
       case 'reddet':
-        await gkDurumYaz(gkGorevBul(gorevId), tarih, 'reddedildi', gkOnaylayan());
+        await gkDurumYaz(gkGorevBul(gorevId), tarih, 'reddedildi');
         mesaj = 'Yapılmadı olarak işaretlendi.';
         break;
       case 'muaf':
-        await gkDurumYaz(gkGorevBul(gorevId), tarih, 'muaf', gkOnaylayan());
+        await gkDurumYaz(gkGorevBul(gorevId), tarih, 'muaf');
         mesaj = 'Bu görev o gün için sayılmayacak.';
         break;
       case 'sifirla':
@@ -655,22 +645,16 @@ async function gkIslem(btn) {
         mesaj = 'Sıfırlandı.';
         break;
       case 'hepsini-onayla': {
-        const liste = [...gk.kayitlar.values()].filter(k => k.durum === 'bekliyor');
-        for (const k of liste) {
-          const g = gkGorevBul(k.gorev_id);
-          if (g) await gkDurumYaz(g, k.tarih, 'onaylandi', gkOnaylayan());
-        }
-        mesaj = `${liste.length} görev onaylandı.`;
+        const sonuc = await gkEbeveyn('toplu_onay');
+        mesaj = `${sonuc.adet} görev onaylandı.`;
         break;
       }
       case 'teslim':
-        gkKontrol(await gkDb.from('gk_odul_teslimleri').insert({
-          odul_id: Number(btn.dataset.odul), donem_baslangic: btn.dataset.donem, teslim_eden: gkOnaylayan() || null
-        }));
+        await gkEbeveyn('teslim', { odul_id: Number(btn.dataset.odul), donem_baslangic: btn.dataset.donem });
         mesaj = 'Ödül teslim edildi olarak kaydedildi.';
         break;
       case 'teslim-geri':
-        gkKontrol(await gkDb.from('gk_odul_teslimleri').delete().eq('id', Number(btn.dataset.teslim)));
+        await gkEbeveyn('teslim_geri', { id: Number(btn.dataset.teslim) });
         mesaj = 'Teslim kaydı geri alındı.';
         break;
       case 'gorev-kaydet': tamam = await gkGorevKaydet(btn); mesaj = 'Görev kaydedildi.'; break;
@@ -681,7 +665,7 @@ async function gkIslem(btn) {
       case 'ceza-uygula': tamam = await gkCezaUygula(btn); mesaj = 'Telafi görevi eklendi.'; break;
       case 'odul-sil':
         if (!confirm('Bu kayıt ve geçmiş teslim/uygulama kayıtları silinsin mi?')) { tamam = false; break; }
-        gkKontrol(await gkDb.from('gk_oduller').delete().eq('id', Number(btn.dataset.odul)));
+        await gkEbeveyn('odul_sil', { id: Number(btn.dataset.odul) });
         gkAcikForm = null;
         mesaj = 'Silindi.';
         break;
@@ -692,6 +676,7 @@ async function gkIslem(btn) {
     if (mesaj) gkMesaj(mesaj);
     await gkYenile();
   } catch (e) {
+    if (e && e.oturumYok) { gkKilitle(); gkMesaj(e.message, 'hata'); return; }   // 15 dakikalık oturum bitti → PIN tekrar sorulur
     gkHata(e);
     btn.disabled = false;
   }
