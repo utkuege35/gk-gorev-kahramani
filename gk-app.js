@@ -321,6 +321,22 @@ async function gkKayitSil(gorevId, tarihStr) {
 function gkEsc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+// Özel simgeler: simge kutusuna "lego" yazılırsa Lego parçası çizimi gösterilir
+const GK_LEGO_SVG = '<svg viewBox="0 0 64 56" style="width:1em;height:1em;vertical-align:-.12em" aria-hidden="true">'
+  + '<rect x="10" y="3" width="16" height="13" rx="3" fill="#C62828"/>'
+  + '<rect x="38" y="3" width="16" height="13" rx="3" fill="#C62828"/>'
+  + '<rect x="10" y="3" width="16" height="6" rx="3" fill="#EF5350"/>'
+  + '<rect x="38" y="3" width="16" height="6" rx="3" fill="#EF5350"/>'
+  + '<rect x="3" y="13" width="58" height="40" rx="6" fill="#E53935"/>'
+  + '<rect x="3" y="39" width="58" height="14" rx="6" fill="#C62828"/>'
+  + '<rect x="3" y="13" width="58" height="8" rx="4" fill="#EF5350"/>'
+  + '</svg>';
+function gkIkon(ikon) {
+  const k = String(ikon ?? '').trim().toLowerCase();
+  if (k === 'lego') return GK_LEGO_SVG;
+  return gkEsc(ikon);
+}
+
 function gkMesaj(metin, tur) {
   let el = document.getElementById('gkMesaj');
   if (!el) {
