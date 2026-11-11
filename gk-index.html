@@ -237,10 +237,10 @@ function gkOdulleriCiz(bugun) {
   const kutu = document.getElementById('gkOdulListe');
   const liste = gkOdullerSirali(gkOduller().filter(o => o.aktif));
   if (!liste.length) {
-    kutu.innerHTML = gkTakvimHtml() + '<p class="gk-bos">Henüz ödül eklenmedi.</p>' + gkDikkatHtml(bugun);
+    kutu.innerHTML = '<p class="gk-bos">Henüz ödül eklenmedi.</p>' + gkDikkatHtml(bugun) + gkTakvimHtml();
     return;
   }
-  kutu.innerHTML = gkTakvimHtml() + liste.map(o => {
+  kutu.innerHTML = liste.map(o => {
     const donem = gkDonem(o.donem, bugun, hb);
     const d = gkOdulDurumu(o, donem);
     const kalan = Math.max(0, d.hedef - d.net);
@@ -269,7 +269,7 @@ function gkOdulleriCiz(bugun) {
         ${oncekiNot}
       </div>
     </article>`;
-  }).join('') + gkDikkatHtml(bugun);
+  }).join('') + gkDikkatHtml(bugun) + gkTakvimHtml();
 }
 
 // ---------- Cezalar (Dikkat kartları) ----------
