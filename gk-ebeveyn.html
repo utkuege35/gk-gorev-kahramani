@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="gk-style.css?v=16">
+<link rel="stylesheet" href="gk-style.css?v=17">
 <style>.gk-form[data-tur="tek"] .gk-baslangic-alani { display: none; }</style>
 </head>
 <body class="gk-ebeveyn">
@@ -51,8 +51,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="gk-ayar.js?v=16"></script>
-<script src="gk-app.js?v=16"></script>
+<script src="gk-ayar.js?v=17"></script>
+<script src="gk-app.js?v=17"></script>
 <script>
 let gkSeciliGun = gkTarihStr(gkBugun());
 let gkAcikForm = null; // örn. 'gorev-12', 'gorev-yeni', 'odul-3', 'odul-yeni'
@@ -227,7 +227,7 @@ function gkOdulKarti(o, bugun, hb) {
     : `${GK_DONEM_ETIKET[o.donem]}, gereken başarı %${o.esik_yuzde}`;
   let h = `<div class="gk-kutu${o.aktif ? '' : ' pasif'}">
     <div class="gk-satir gk-satir-bas">
-      <span class="gk-satir-ad"><span class="gk-buyuk-ikon">${gkEsc(o.ikon)}</span> ${gkEsc(o.ad)}
+      <span class="gk-satir-ad"><span class="gk-buyuk-ikon">${gkIkon(o.ikon)}</span> ${gkEsc(o.ad)}
         <small>${alt}${o.aktif ? '' : ', pasif'}</small></span>
       <button class="gk-btn" data-islem="form-ac" data-form="odul-${o.id}">Düzenle</button>
     </div>`;
@@ -307,7 +307,7 @@ function gkOdulForm(o, tur) {
   return `<div class="gk-form" data-id="${yeni ? '' : o.id}" data-odul-tur="${ceza ? 'ceza' : 'odul'}">
     <div class="gk-iki">
       <label>${ceza ? 'Telafi görevi (ceza)' : 'Ödül adı'}<input name="ad" value="${gkEsc(o.ad)}" maxlength="80"></label>
-      <label>Simge (emoji)<input name="ikon" value="${gkEsc(o.ikon)}" maxlength="8"></label>
+      <label>Simge (emoji ya da lego)<input name="ikon" value="${gkEsc(o.ikon)}" maxlength="8"></label>
     </div>
     <div class="gk-iki">
       <label>Dönem<select name="donem">${GK_DONEM_TURLERI.map(d =>
